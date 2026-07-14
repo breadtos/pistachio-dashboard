@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>🍃 Pistachio Sweets — Live Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --primary:#1B4332; --accent:#40916C; --light:#D8F3DC;
+  --warning:#F4A261; --danger:#E63946; --ok:#2A9D8F;
+  --bg:#F8F9FA; --card:#FFFFFF; --text:#1d2b26; --muted:#6b7c76;
+  --border:#e3e8e5; --shadow:0 2px 10px rgba(27,67,50,.08);
+  --navbar:#1B4332; --navtext:#F8F9FA; --sidebar:#ffffff;
+}
+html[data-theme="dark"]{
+  --bg:#1A1A2E; --card:#232342; --text:#e8ecf1; --muted:#9aa4b8;
+  --border:#33334f; --shadow:0 2px 14px rgba(0,0,0,.35);
+  --navbar:#12122a; --navtext:#e8ecf1; --sidebar:#1f1f3a; --light:#22432f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Segoe UI','Tajawal',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  background:var(--bg); color:var(--text); font-size:15px; line-height:1.4;
+  transition:background .3s,color .3s;
+}
+a{color:inherit;text-decoration:none}
+.arabic{font-family:'Tajawal',sans-serif; direction:rtl; unicode-bidi:isolate}
+
+/* ===== NAVBAR ===== */
+.navbar{
+  position:sticky; top:0; z-index:100; background:var(--navbar); color:var(--navtext);
+  display:flex; align-items:center; gap:14px; padding:10px 18px; box-shadow:0 2px 8px rgba(0,0,0,.15);
+}
+.navbar .logo{font-size:1.15rem; font-weight:800; white-space:nowrap; display:flex; align-items:center; gap:6px}
+.navbar .clock{font-size:.82rem; opacity:.9; line-height:1.2}
+.navbar .spacer{flex:1}
+.nav-btn{
+  background:rgba(255,255,255,.12); color:var(--navtext); border:none; cursor:pointer;
+  min-width:44px; min-height:44px; padding:0 14px; border-radius:10px; font-size:1rem;
+  display:inline-flex; align-items:center; gap:8px; transition:background .2s;
+}
+.nav-btn:hover{background:rgba(255,255,255,.24)}
+.nav-btn:active{transform:scale(.96)}
+.status-dot{width:9px;height:9px;border-radius:50%;background:#9aa;display:inline-block}
+.status-dot.live{background:#7CFFB2;box-shadow:0 0 8px #7CFFB2}
+.status-dot.err{background:var(--danger)}
+.spin{animation:spin 1s linear infinite; display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== LAYOUT ===== */
+.shell{display:flex; min-height:calc(100vh - 64px)}
+.sidebar{
+  width:210px; flex-shrink:0; background:var(--sidebar); border-right:1px solid var(--border);
+  padding:16px 10px; position:sticky; top:64px; height:calc(100vh - 64px); overflow-y:auto;
+}
+.sidebar a{
+  display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:10px;
+  color:var(--muted); font-weight:600; font-size:.92rem; margin-bottom:3px; min-height:44px;
+}
+.sidebar a:hover{background:var(--light); color:var(--primary)}
+.sidebar a.active{background:var(--accent); color:#fff}
+.main{flex:1; padding:20px; max-width:1500px; margin:0 auto; width:100%}
+.section{margin-bottom:30px; scroll-margin-top:74px}
+.section-title{
+  display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:1.12rem; font-weight:800; color:var(--primary);
+}
+html[data-theme="dark"] .section-title{color:var(--accent)}
+.section-title .ar{font-size:.86rem; color:var(--muted); font-weight:600}
+
+/* ===== CARDS ===== */
+.card{background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); padding:16px}
+.kpi-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:14px}
+.kpi{
+  background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow);
+  padding:15px; position:relative; overflow:hidden; min-height:120px;
+}
+.kpi::before{content:""; position:absolute; inset:0 auto 0 0; width:5px; background:var(--accent)}
+.kpi.good::before{background:var(--ok)} .kpi.warn::before{background:var(--warning)} .kpi.bad::before{background:var(--danger)}
+.kpi .icon{font-size:1.4rem}
+.kpi .val{font-size:1.6rem; font-weight:800; margin:6px 0 2px; letter-spacing:-.5px}
+.kpi .lbl{font-size:.8rem; font-weight:700; color:var(--text)}
+.kpi .lbl-ar{font-size:.78rem; color:var(--muted); font-weight:600}
+.kpi .trend{font-size:.74rem; font-weight:700; margin-top:7px; display:inline-flex; align-items:center; gap:4px}
+.trend.up{color:var(--ok)} .trend.down{color:var(--danger)} .trend.flat{color:var(--muted)}
+
+/* ===== AGGREGATORS ===== */
+.agg-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+.agg{border-radius:16px; padding:16px; color:#fff; position:relative; box-shadow:var(--shadow)}
+.agg.talabat{background:linear-gradient(135deg,#F4A261,#E76F00)}
+.agg.jahez{background:linear-gradient(135deg,#EF476F,#c81d4e)}
+.agg.keeta{background:linear-gradient(135deg,#40916C,#1B4332)}
+.agg h3{font-size:1.05rem; display:flex; align-items:center; gap:8px; margin-bottom:10px}
+.agg .row{display:flex; justify-content:space-between; font-size:.85rem; padding:3px 0; opacity:.95}
+.agg .row b{font-weight:800}
+.agg .mini{margin-top:8px; background:rgba(255,255,255,.12); border-radius:10px; padding:6px; height:66px}
+
+/* ===== TABLES ===== */
+.table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+table{width:100%; border-collapse:collapse; font-size:.88rem; min-width:480px}
+th,td{padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap}
+th{font-size:.76rem; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); font-weight:700}
+thead th{position:sticky; top:0; background:var(--card); z-index:1}
+tbody tr:hover{background:var(--light)}
+html[data-theme="dark"] tbody tr:hover{background:rgba(64,145,108,.12)}
+.badge{padding:3px 9px; border-radius:20px; font-size:.72rem; font-weight:700; display:inline-block}
+.badge.green{background:var(--light); color:var(--primary)}
+.badge.warn{background:#fde3c8; color:#a85a00}
+.badge.red{background:#fbd5d9; color:#a01621}
+.badge.dark{background:#5a0d16; color:#ffd7db}
+.rank{font-weight:800; color:var(--accent)}
+
+/* ===== CHART BOXES ===== */
+.chart-box{position:relative; height:320px}
+.chart-box.tall{height:360px}
+canvas{max-width:100%}
+
+/* ===== SPINNER / STATES ===== */
+.loader{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:34px; color:var(--muted)}
+.loader .ring{width:34px;height:34px;border:4px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite}
+.errbox{padding:22px; text-align:center; color:var(--danger); font-weight:600}
+.errbox .retry{margin-top:12px; background:var(--accent); color:#fff; border:none; padding:10px 20px; border-radius:10px; cursor:pointer; min-height:44px; font-weight:700}
+.empty{padding:26px; text-align:center; color:var(--muted); font-weight:600}
+.grid-2{display:grid; grid-template-columns:1fr; gap:18px}
+
+/* ===== CORS BANNER ===== */
+.cors-banner{
+  display:none; background:#fff3cd; color:#664d03; border:1px solid #ffe69c; border-radius:12px;
+  padding:14px 16px; margin-bottom:18px; font-size:.9rem; line-height:1.5;
+}
+html[data-theme="dark"] .cors-banner{background:#3a3320; color:#ffe9a8; border-color:#5c5024}
+.cors-banner b{display:block; margin-bottom:4px}
+.cors-banner code{background:rgba(0,0,0,.12); padding:2px 6px; border-radius:5px; font-size:.82rem}
+
+/* ===== BOTTOM NAV (mobile) ===== */
+.bottomnav{display:none}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:1200px){ .kpi-grid{grid-template-columns:repeat(3,1fr)} }
+@media(max-width:900px){
+  .sidebar{display:none}
+  .main{padding:14px 12px 84px}
+  .agg-grid{grid-template-columns:1fr}
+  .bottomnav{
+    display:flex; position:fixed; bottom:0; left:0; right:0; z-index:100; background:var(--navbar);
+    justify-content:space-around; padding:6px 4px; box-shadow:0 -2px 10px rgba(0,0,0,.2);
+  }
+  .bottomnav a{
+    color:var(--navtext); opacity:.75; font-size:.62rem; text-align:center; padding:5px 4px; min-width:44px;
+    display:flex; flex-direction:column; align-items:center; gap:2px; border-radius:8px;
+  }
+  .bottomnav a.active{opacity:1; background:rgba(255,255,255,.15)}
+  .bottomnav a span{font-size:1.15rem}
+}
+@media(max-width:640px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .navbar .clock .d{display:none}
+  .kpi .val{font-size:1.35rem}
+}
+
+/* ===== FILTER BAR ===== */
+.filterbar{
+  position:sticky; top:64px; z-index:90; background:var(--card); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:8px; padding:10px 18px; flex-wrap:wrap; box-shadow:0 2px 6px rgba(0,0,0,.05);
+}
+.filterbar .flabel{font-size:.8rem; color:var(--muted); font-weight:800; margin-inline-end:4px; white-space:nowrap}
+.fbtn{
+  background:var(--bg); color:var(--text); border:1px solid var(--border); cursor:pointer;
+  padding:8px 14px; border-radius:999px; font-size:.82rem; font-weight:700; min-height:40px;
+  display:inline-flex; align-items:center; gap:6px; transition:.15s;
+}
+.fbtn:hover{border-color:var(--accent); color:var(--accent)}
+.fbtn.active{background:var(--primary); color:#fff; border-color:var(--primary)}
+.fbtn .ar{font-size:.72rem; opacity:.85}
+.custom-range{display:none; align-items:center; gap:6px; flex-wrap:wrap}
+.custom-range.show{display:inline-flex}
+.custom-range input[type=date]{
+  background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:7px 9px; font-size:.8rem; min-height:40px;
+}
+.custom-range .apply{background:var(--accent); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-weight:700; cursor:pointer; min-height:40px}
+.custom-range .apply:hover{background:var(--primary)}
+.pchip{
+  font-size:.72rem; font-weight:700; color:var(--accent); background:var(--light); border-radius:999px;
+  padding:3px 11px; margin-inline-start:auto; white-space:nowrap;
+}
+html[data-theme="dark"] .pchip{color:#8fe0b4}
+
+/* ===== CLICKABLE AFFORDANCE ===== */
+.clickable{cursor:pointer}
+.kpi.clickable{transition:transform .15s, box-shadow .15s}
+.kpi.clickable:hover{transform:translateY(-2px); box-shadow:0 8px 20px rgba(27,67,50,.16)}
+.agg.clickable{transition:transform .15s, filter .15s}
+.agg.clickable:hover{transform:translateY(-2px); filter:brightness(1.06)}
+tr.clickable:hover{background:var(--light)}
+html[data-theme="dark"] tr.clickable:hover{background:rgba(64,145,108,.14)}
+.zoom-hint{position:absolute; top:9px; right:11px; opacity:0; font-size:.85rem; transition:opacity .15s; pointer-events:none}
+.kpi.clickable:hover .zoom-hint, .agg.clickable:hover .zoom-hint{opacity:.85}
+.agg .zoom-hint{color:#fff}
+td .rowzoom{opacity:0; transition:opacity .15s; font-size:.8rem}
+tr.clickable:hover .rowzoom{opacity:.6}
+
+/* ===== MODAL ===== */
+.modal-overlay{
+  display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.7);
+  align-items:flex-start; justify-content:center; padding:30px 16px; overflow-y:auto;
+}
+.modal-overlay.show{display:flex}
+.modal-card{
+  background:var(--card); color:var(--text); width:100%; max-width:900px; border-radius:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.45); display:flex; flex-direction:column; max-height:90vh; overflow:hidden;
+  animation:modalIn .2s ease;
+}
+@keyframes modalIn{from{transform:translateY(18px);opacity:0}to{transform:none;opacity:1}}
+.modal-header{background:var(--primary); color:#fff; padding:14px 18px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px}
+.modal-header .mt{font-size:1.05rem; font-weight:800}
+.modal-sub{font-size:.78rem; opacity:.85; font-weight:600; margin-top:3px}
+.modal-x{background:rgba(255,255,255,.16); color:#fff; border:none; width:38px; height:38px; border-radius:10px; font-size:1rem; cursor:pointer; flex-shrink:0}
+.modal-x:hover{background:rgba(255,255,255,.32)}
+.modal-body{padding:16px 18px; overflow:auto; flex:1}
+.modal-meta{background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:.85rem; display:flex; flex-wrap:wrap; gap:6px 18px}
+.modal-meta b{color:var(--primary)}
+html[data-theme="dark"] .modal-meta b{color:var(--accent)}
+.modal-footer{border-top:1px solid var(--border); padding:12px 18px; display:flex; align-items:center; justify-content:space-between; gap:10px}
+.modal-count{font-size:.8rem; color:var(--muted); font-weight:600}
+.modal-export{background:var(--accent); color:#fff; border:none; border-radius:10px; padding:10px 18px; font-weight:700; cursor:pointer; min-height:44px}
+.modal-export:hover:not(:disabled){background:var(--primary)}
+.modal-export:disabled{opacity:.45; cursor:default}
+@media(max-width:640px){
+  .modal-overlay{padding:0}
+  .modal-card{max-width:100%; max-height:100vh; height:100vh; border-radius:0}
+  .filterbar{top:60px; padding:8px 10px; gap:6px}
+  .fbtn{padding:7px 10px; font-size:.76rem}
+  .filterbar .flabel{width:100%}
+}
+</style>
+</head>
+<body>
+
+<div class="navbar">
+  <div class="logo">🍃 <span>Pistachio Sweets</span></div>
+  <div class="clock">
+    <div id="clockTime">--:--:--</div>
+    <div class="d" id="clockDate" style="opacity:.75">—</div>
+  </div>
+  <div class="spacer"></div>
+  <span class="status-dot" id="statusDot" title="connection"></span>
+  <button class="nav-btn" id="refreshBtn" title="Refresh / تحديث"><span id="refreshIcon">⟳</span></button>
+  <button class="nav-btn" id="themeBtn" title="Theme / الوضع">🌙</button>
+</div>
+
+<div class="filterbar" id="filterbar">
+  <span class="flabel">📅 Period <span class="arabic">الفترة</span></span>
+  <button class="fbtn" data-period="today">Today <span class="ar arabic">اليوم</span></button>
+  <button class="fbtn" data-period="yesterday">Yesterday <span class="ar arabic">أمس</span></button>
+  <button class="fbtn" data-period="week">This Week <span class="ar arabic">هذا الأسبوع</span></button>
+  <button class="fbtn" data-period="month">This Month <span class="ar arabic">هذا الشهر</span></button>
+  <button class="fbtn" data-period="lastmonth">Last Month <span class="ar arabic">الشهر الماضي</span></button>
+  <button class="fbtn" data-period="custom">📅 Custom <span class="ar arabic">مخصص</span></button>
+  <span class="custom-range" id="customRange">
+    <input type="date" id="customFrom" title="From / من">
+    <span style="color:var(--muted)">→</span>
+    <input type="date" id="customTo" title="To / إلى">
+    <button class="apply" id="customApply">Apply / تطبيق</button>
+  </span>
+</div>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <a href="#kpis" class="active">📊 <span>KPIs <span class="arabic" style="font-size:.8rem;opacity:.7">المؤشرات</span></span></a>
+    <a href="#sales">📈 <span>Sales <span class="arabic" style="font-size:.8rem;opacity:.7">المبيعات</span></span></a>
+    <a href="#aggregators">🛵 <span>Aggregators <span class="arabic" style="font-size:.8rem;opacity:.7">التطبيقات</span></span></a>
+    <a href="#topproducts">🏆 <span>Top Products <span class="arabic" style="font-size:.8rem;opacity:.7">الأكثر مبيعاً</span></span></a>
+    <a href="#inventory">📦 <span>Inventory <span class="arabic" style="font-size:.8rem;opacity:.7">المخزون</span></span></a>
+    <a href="#invoices">🧾 <span>Invoices <span class="arabic" style="font-size:.8rem;opacity:.7">الفواتير</span></span></a>
+    <a href="#monthly">🗓️ <span>Monthly <span class="arabic" style="font-size:.8rem;opacity:.7">شهري</span></span></a>
+  </nav>
+
+  <main class="main">
+    <div class="cors-banner" id="corsBanner">
+      <b>⚠️ Connection blocked (CORS) — الاتصال محجوب</b>
+      The browser blocked the request to Odoo because this page was opened directly as a file.
+      Please close this and launch using <code>Launch_Dashboard.bat</code> (in the same folder),
+      which opens the dashboard with the required browser flag. <span class="arabic">افتح لوحة التحكم عبر ملف Launch_Dashboard.bat</span>
+    </div>
+
+    <!-- SECTION 1: KPIs -->
+    <section class="section" id="kpis">
+      <div class="section-title">📊 Key Metrics <span class="ar arabic">المؤشرات الرئيسية</span></div>
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="loader" style="grid-column:1/-1"><div class="ring"></div>Loading KPIs…</div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: Sales Chart -->
+    <section class="section" id="sales">
+      <div class="section-title">📈 Sales — Last 7 Days <span class="ar arabic">المبيعات — آخر ٧ أيام</span></div>
+      <div class="card">
+        <div class="chart-box" id="salesBox"><div class="loader"><div class="ring"></div>Loading…</div></div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: Aggregators -->
+    <section class="section" id="aggregators">
+      <div class="section-title">🛵 Delivery Aggregators <span class="ar arabic">تطبيقات التوصيل</span></div>
+      <div class="agg-grid" id="aggGrid">
+        <div class="loader" style="grid-column:1/-1"><div class="ring"></div>Loading aggregators…</div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: Top products -->
+    <section class="section" id="topproducts">
+      <div class="section-title">🏆 Top 10 Products Today <span class="ar arabic">أفضل ١٠ منتجات اليوم</span></div>
+      <div class="card"><div class="table-wrap" id="topBox"><div class="loader"><div class="ring"></div>Loading…</div></div></div>
+    </section>
+
+    <!-- SECTION 5: Inventory -->
+    <section class="section" id="inventory">
+      <div class="section-title">📦 Inventory Alerts <span class="ar arabic">تنبيهات المخزون</span></div>
+      <div class="card"><div class="table-wrap" id="invBox"><div class="loader"><div class="ring"></div>Loading…</div></div></div>
+    </section>
+
+    <!-- SECTION 6: Recent invoices -->
+    <section class="section" id="invoices">
+      <div class="section-title">🧾 Recent Customer Invoices <span class="ar arabic">أحدث فواتير العملاء</span></div>
+      <div class="card"><div class="table-wrap" id="invoiceBox"><div class="loader"><div class="ring"></div>Loading…</div></div></div>
+    </section>
+
+    <!-- SECTION 7: Monthly -->
+    <section class="section" id="monthly">
+      <div class="section-title">🗓️ Monthly Revenue — Last 6 Months <span class="ar arabic">الإيرادات الشهرية — آخر ٦ أشهر</span></div>
+      <div class="card">
+        <div class="chart-box tall" id="monthlyBox"><div class="loader"><div class="ring"></div>Loading…</div></div>
+      </div>
+    </section>
+
+    <div style="text-align:center; color:var(--muted); font-size:.78rem; padding:8px 0 20px">
+      Pistachio Sweets · Odoo 19 · Auto-refresh every 5 min ·
+      <span id="lastUpdate">—</span>
+    </div>
+  </main>
+</div>
+
+<nav class="bottomnav" id="bottomnav">
+  <a href="#kpis" class="active"><span>📊</span>KPIs</a>
+  <a href="#sales"><span>📈</span>Sales</a>
+  <a href="#aggregators"><span>🛵</span>Apps</a>
+  <a href="#topproducts"><span>🏆</span>Top</a>
+  <a href="#inventory"><span>📦</span>Stock</a>
+  <a href="#invoices"><span>🧾</span>Inv</a>
+  <a href="#monthly"><span>🗓️</span>Month</a>
+</nav>
+
+<!-- DRILL-DOWN MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <div>
+        <div class="mt" id="modalTitle">—</div>
+        <div class="modal-sub" id="modalSub"></div>
+      </div>
+      <button class="modal-x" id="modalClose" title="Close (Esc) / إغلاق">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer">
+      <span class="modal-count" id="modalCount"></span>
+      <button class="modal-export" id="modalExport" disabled>📥 Export CSV</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========================================================================
+   PISTACHIO SWEETS — LIVE ODOO DASHBOARD
+   Vanilla JS · XML-RPC over fetch() · Chart.js
+   ======================================================================== */
+
+const CFG = {
+  base:  'https://www.pistachiosweet.com',
+  // Cloudflare Worker CORS proxy — replace YOUR-SUBDOMAIN with your workers.dev
+  // subdomain after deploying cloudflare_worker.js.
+  proxy: 'https://pistachio-proxy.almarzooqh.workers.dev',
+  // Credentials are NOT stored here. These placeholders are substituted with the
+  // real values by the Cloudflare Worker (from its secrets) before the request
+  // reaches Odoo — so this file is safe to publish publicly (GitHub Pages).
+  db:    '__ODOO_DB__',
+  user:  '__ODOO_USER__',
+  pass:  '__ODOO_PASS__'
+};
+// Always route XML-RPC through the proxy so the dashboard works from any browser,
+// mobile, file://, localhost, or GitHub Pages (Odoo sends no CORS headers itself).
+// The worker forwards by URL path, so RPC_BASE must keep the /xmlrpc/2/ prefix;
+// endpoints ('common' / 'object') are appended → .../xmlrpc/2/common, etc.
+const RPC_BASE = CFG.proxy.replace(/\/+$/, '') + '/xmlrpc/2/';
+const TZ = 'Asia/Bahrain';       // store timezone (UTC+3, no DST)
+const TZ_OFFSET_MIN = 180;       // +3h
+const CUR = 'BHD';
+const REFRESH_MS = 5 * 60 * 1000;
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let UID = null;
+let charts = {};                 // Chart.js instances by key
+let refreshTimer = null;
+
+/* ---------- XML-RPC ENCODER ---------- */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function xmlVal(v){
+  if (v === null || v === undefined) return '<value><nil/></value>';
+  if (typeof v === 'boolean') return '<value><boolean>'+(v?1:0)+'</boolean></value>';
+  if (typeof v === 'number'){
+    return Number.isInteger(v)
+      ? '<value><int>'+v+'</int></value>'
+      : '<value><double>'+v+'</double></value>';
+  }
+  if (Array.isArray(v)) return '<value><array><data>'+v.map(xmlVal).join('')+'</data></array></value>';
+  if (typeof v === 'object'){
+    let m = '';
+    for (const k in v) m += '<member><name>'+esc(k)+'</name>'+xmlVal(v[k])+'</member>';
+    return '<value><struct>'+m+'</struct></value>';
+  }
+  return '<value><string>'+esc(v)+'</string></value>';
+}
+function buildXmlRpc(method, params){
+  const p = params.map(x => '<param>'+xmlVal(x)+'</param>').join('');
+  return '<?xml version="1.0"?><methodCall><methodName>'+method+'</methodName><params>'+p+'</params></methodCall>';
+}
+
+/* ---------- XML-RPC DECODER ---------- */
+function parseValue(node){
+  const child = Array.from(node.children).find(n => n.nodeType === 1);
+  if (!child) return node.textContent;                 // bare string
+  switch (child.tagName){
+    case 'int': case 'i4':   return parseInt(child.textContent, 10);
+    case 'double':           return parseFloat(child.textContent);
+    case 'boolean':          return child.textContent.trim() === '1';
+    case 'nil':              return null;
+    case 'string':
+    case 'dateTime.iso8601': return child.textContent;
+    case 'array':
+      return Array.from(child.querySelector('data').children)
+        .filter(n => n.tagName === 'value').map(parseValue);
+    case 'struct': {
+      const o = {};
+      Array.from(child.children).filter(n => n.tagName === 'member').forEach(mem => {
+        const name = mem.querySelector('name').textContent;
+        const ve = Array.from(mem.children).find(n => n.tagName === 'value');
+        o[name] = ve ? parseValue(ve) : null;
+      });
+      return o;
+    }
+    default: return child.textContent;
+  }
+}
+function parseXmlRpc(text){
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  const fault = doc.querySelector('methodResponse > fault');
+  if (fault){
+    const f = parseValue(fault.querySelector('value'));
+    throw new Error('Odoo fault: ' + (f.faultString || JSON.stringify(f)));
+  }
+  const val = doc.querySelector('methodResponse > params > param > value');
+  if (!val) throw new Error('Malformed XML-RPC response');
+  return parseValue(val);
+}
+
+/* ---------- TRANSPORT (with concurrency limit + 429 retry) ----------
+   Odoo Online rate-limits bursts of concurrent requests (HTTP 429).
+   We cap simultaneous requests and retry 429/503 with backoff.        */
+const MAX_CONC = 3;
+let _active = 0;
+const _queue = [];
+function _pump(){
+  while (_active < MAX_CONC && _queue.length){
+    _active++;
+    const job = _queue.shift();
+    job().finally(() => { _active--; _pump(); });
+  }
+}
+function schedule(task){
+  return new Promise((resolve, reject) => {
+    _queue.push(() => task().then(resolve, reject));
+    _pump();
+  });
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function rawRpc(endpoint, method, params){
+  const body = buildXmlRpc(method, params);
+  for (let attempt = 0; ; attempt++){
+    let res;
+    try {
+      res = await fetch(RPC_BASE + endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'text/xml' }, body
+      });
+    } catch (e){
+      const err = new Error('NETWORK'); err.cors = true; throw err;   // CORS/offline
+    }
+    if ((res.status === 429 || res.status === 503) && attempt < 6){
+      await sleep(250 * Math.pow(2, attempt) + Math.random()*150);    // backoff + jitter
+      continue;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return parseXmlRpc(await res.text());
+  }
+}
+function rpc(endpoint, method, params){
+  return schedule(() => rawRpc(endpoint, method, params));
+}
+async function authenticate(){
+  UID = await rpc('common', 'authenticate', [CFG.db, CFG.user, CFG.pass, {}]);
+  if (!UID) throw new Error('Authentication failed — check credentials');
+  return UID;
+}
+function odoo(model, method, args, kwargs){
+  return rpc('object', 'execute_kw', [CFG.db, UID, CFG.pass, model, method, args, kwargs || {}]);
+}
+// convenience wrappers
+const searchCount = (model, domain)              => odoo(model, 'search_count', [domain]);
+const searchRead  = (model, domain, fields, kw)  => odoo(model, 'search_read', [domain, fields], kw || {});
+const readGroup   = (model, domain, fields, gb, kw) => odoo(model, 'read_group', [domain, fields, gb], Object.assign({lazy:false}, kw||{}));
+
+/* ---------- DATE HELPERS (Bahrain wall-clock -> UTC for domains) ---------- */
+function bhTodayParts(){
+  const f = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'});
+  const [y,m,d] = f.format(new Date()).split('-').map(Number);
+  return {y,m,d};
+}
+// UTC millisecond instant of Bahrain-local midnight for a given Y/M/D
+function bhMidnightUtcMs(y,m,d){ return Date.UTC(y, m-1, d) - TZ_OFFSET_MIN*60000; }
+// format a UTC instant as Odoo datetime 'YYYY-MM-DD HH:MM:SS'
+function odooDT(ms){ return new Date(ms).toISOString().slice(0,19).replace('T',' '); }
+// Bahrain-local calendar date 'YYYY-MM-DD' for a UTC instant (for date-only fields
+// like invoice_date, which store a wall-clock date, not a UTC datetime).
+function bhDateString(ms){
+  return new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date(ms));
+}
+function dayLabel(y,m,d){ return String(d).padStart(2,'0')+' '+MON[m-1]+' '+y; }
+function monthLabel(y,m){ return MON[m-1]+' '+y; }
+// Odoo's date:month grouping returns full month names ("July 2026"), day grouping
+// returns abbreviated ("13 Jul 2026"). Normalize a month label to "jul2026" so our
+// lookup works regardless of full/abbreviated month naming or locale spacing.
+function monthKey(s){
+  let mon='', yr='';
+  String(s).split(/\s+/).forEach(p => {
+    if (/^\d{4}$/.test(p)) yr = p;
+    else if (/[A-Za-z]/.test(p)) mon = p.slice(0,3).toLowerCase();
+  });
+  return mon + yr;
+}
+
+function dateWindows(){
+  const t = bhTodayParts();
+  const todayMs   = bhMidnightUtcMs(t.y, t.m, t.d);
+  const tomMs     = todayMs + 86400000;
+  const yestMs    = todayMs - 86400000;
+  const monthMs   = bhMidnightUtcMs(t.y, t.m, 1);
+  // last month start
+  const lmY = t.m === 1 ? t.y-1 : t.y, lmM = t.m === 1 ? 12 : t.m-1;
+  const lastMonthMs = bhMidnightUtcMs(lmY, lmM, 1);
+  // 6-months-ago start (first day of the month 5 back)
+  let sy = t.y, sm = t.m - 5; while (sm <= 0){ sm += 12; sy -= 1; }
+  const sixMoMs = bhMidnightUtcMs(sy, sm, 1);
+  const sevenAgoMs = todayMs - 6*86400000;
+  return {t, todayMs, tomMs, yestMs, monthMs, lastMonthMs, sixMoMs, sevenAgoMs};
+}
+// list of last 7 days {label} chronological
+function last7Days(){
+  const {todayMs} = dateWindows();
+  const out = [];
+  for (let i=6;i>=0;i--){
+    const ms = todayMs - i*86400000 + 12*3600000; // midday to be safe
+    const f = new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'});
+    const [y,m,d] = f.format(new Date(ms)).split('-').map(Number);
+    out.push({y,m,d, label:dayLabel(y,m,d), short:String(d).padStart(2,'0')+' '+MON[m-1]});
+  }
+  return out;
+}
+function last6Months(){
+  const t = bhTodayParts();
+  const out = [];
+  for (let i=5;i>=0;i--){
+    let y=t.y, m=t.m-i; while(m<=0){m+=12;y-=1;}
+    out.push({y,m, label:monthLabel(y,m), short:MON[m-1]+" '"+String(y).slice(2)});
+  }
+  return out;
+}
+// day descriptor from a Bahrain-midnight UTC instant
+function dayDescFromMs(ms){
+  const f = new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'});
+  const [y,m,d] = f.format(new Date(ms + 12*3600000)).split('-').map(Number);
+  return {y,m,d,ms, label:dayLabel(y,m,d), short:String(d).padStart(2,'0')+' '+MON[m-1]};
+}
+
+/* ---------- PERIOD (date filter) ---------- */
+let PERIOD = null;
+function computePeriod(key, cf, ct){
+  const t = bhTodayParts();
+  const todayMs = bhMidnightUtcMs(t.y, t.m, t.d);
+  const tomMs   = todayMs + 86400000;
+  switch(key){
+    case 'yesterday': return {key, from:todayMs-86400000, to:todayMs, label:'Yesterday', labelAr:'أمس'};
+    case 'week': {
+      const dow = new Date(Date.UTC(t.y, t.m-1, t.d)).getUTCDay(); // 0=Sun
+      return {key, from:todayMs - dow*86400000, to:tomMs, label:'This Week', labelAr:'هذا الأسبوع'};
+    }
+    case 'month': return {key, from:bhMidnightUtcMs(t.y,t.m,1), to:tomMs, label:'This Month', labelAr:'هذا الشهر'};
+    case 'lastmonth': {
+      const lmY=t.m===1?t.y-1:t.y, lmM=t.m===1?12:t.m-1;
+      return {key, from:bhMidnightUtcMs(lmY,lmM,1), to:bhMidnightUtcMs(t.y,t.m,1), label:'Last Month', labelAr:'الشهر الماضي'};
+    }
+    case 'custom': {
+      if(!cf || !ct) return computePeriod('today');
+      const [fy,fm,fd]=cf.split('-').map(Number), [ty,tm,td]=ct.split('-').map(Number);
+      return {key, cf, ct, from:bhMidnightUtcMs(fy,fm,fd), to:bhMidnightUtcMs(ty,tm,td)+86400000, label:cf+' → '+ct, labelAr:'مخصص'};
+    }
+    default: return {key:'today', from:todayMs, to:tomMs, label:'Today', labelAr:'اليوم'};
+  }
+}
+function periodPrev(p){ const len = p.to - p.from; return {from:p.from-len, to:p.from}; }
+function periodDomain(field){ return [[field,'>=',odooDT(PERIOD.from)],[field,'<',odooDT(PERIOD.to)]]; }
+// Domain for a date-only field, using Bahrain calendar dates. PERIOD.to is an
+// exclusive UTC instant (start of the day AFTER the range), so the last included
+// Bahrain date is bhDateString(PERIOD.to-1); use an inclusive '<=' so single-day
+// periods (e.g. Today) aren't collapsed to an empty range.
+function periodDateDomain(field){
+  const from = bhDateString(PERIOD.from);
+  const to   = bhDateString(PERIOD.to - 1);
+  return [[field,'>=',from],[field,'<=',to]];
+}
+function savePeriod(){ try{ localStorage.setItem('pista_period', JSON.stringify({key:PERIOD.key, cf:PERIOD.cf, ct:PERIOD.ct})); }catch(e){} }
+function restorePeriod(){
+  let s=null; try{ s=JSON.parse(localStorage.getItem('pista_period')||'null'); }catch(e){}
+  PERIOD = (s && s.key) ? computePeriod(s.key, s.cf, s.ct) : computePeriod('today');
+}
+function setPeriod(key, cf, ct){
+  PERIOD = computePeriod(key, cf, ct);
+  savePeriod(); updateFilterUI(); updatePeriodChips(); loadAll();
+}
+function updateFilterUI(){
+  document.querySelectorAll('.fbtn[data-period]').forEach(b => b.classList.toggle('active', b.dataset.period===PERIOD.key));
+  const cr=document.getElementById('customRange');
+  if(cr) cr.classList.toggle('show', PERIOD.key==='custom');
+  if(PERIOD.key==='custom'){
+    if(PERIOD.cf) document.getElementById('customFrom').value=PERIOD.cf;
+    if(PERIOD.ct) document.getElementById('customTo').value=PERIOD.ct;
+  }
+}
+// per-section period badge in the section title
+const CHIP_PERIOD_SECTIONS = {kpis:1, sales:1, aggregators:1, topproducts:1, invoices:1};
+function initPeriodChips(){
+  document.querySelectorAll('.section').forEach(sec=>{
+    const title=sec.querySelector('.section-title'); if(!title) return;
+    const chip=document.createElement('span'); chip.className='pchip'; chip.dataset.for=sec.id; title.appendChild(chip);
+  });
+  updatePeriodChips();
+}
+function updatePeriodChips(){
+  document.querySelectorAll('.pchip').forEach(chip=>{
+    const id=chip.dataset.for;
+    if(id==='inventory') chip.textContent='📦 Live stock';
+    else if(id==='monthly') chip.textContent='🗓️ Last 6 months';
+    else if(CHIP_PERIOD_SECTIONS[id]) chip.textContent='📅 '+(PERIOD?PERIOD.label:'');
+    else chip.style.display='none';
+  });
+}
+// daily buckets to plot for the sales chart given the current period
+function salesChartDays(){
+  let fromMs=PERIOD.from, toMs=PERIOD.to;
+  let count=Math.round((toMs-fromMs)/86400000);
+  if(count<=1){ const lastDay=toMs-86400000; fromMs=lastDay-6*86400000; count=7; }   // single day -> 7 days ending on it
+  if(count>62){ fromMs=toMs-62*86400000; }                                          // cap very long custom ranges
+  const out=[]; for(let ms=fromMs; ms<toMs-1000; ms+=86400000) out.push(dayDescFromMs(ms));
+  return out;
+}
+
+/* ---------- FORMATTING ---------- */
+function fmtCur(n){
+  n = Number(n)||0;
+  return n.toLocaleString('en-US',{minimumFractionDigits:3, maximumFractionDigits:3}) + ' ' + CUR;
+}
+function fmtNum(n){ return (Number(n)||0).toLocaleString('en-US'); }
+function trendHtml(cur, prev){
+  cur = Number(cur)||0; prev = Number(prev)||0;
+  if (prev === 0 && cur === 0) return '<span class="trend flat">— no change</span>';
+  if (prev === 0) return '<span class="trend up">▲ new</span>';
+  const pct = ((cur - prev)/Math.abs(prev))*100;
+  const cls = pct > 0.5 ? 'up' : (pct < -0.5 ? 'down' : 'flat');
+  const arr = pct > 0.5 ? '▲' : (pct < -0.5 ? '▼' : '—');
+  return '<span class="trend '+cls+'">'+arr+' '+Math.abs(pct).toFixed(1)+'%</span>';
+}
+
+/* ---------- UI HELPERS ---------- */
+function setStatus(state){ // 'live' | 'err' | ''
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot' + (state ? ' '+state : '');
+}
+function loader(txt){ return '<div class="loader"><div class="ring"></div>'+(txt||'Loading…')+'</div>'; }
+function errBox(section){
+  return '<div class="errbox">⚠️ Error loading data<br><span class="arabic" style="font-weight:500">تعذّر تحميل البيانات</span>'
+       + '<br><button class="retry" onclick="loadSection(\''+section+'\')">↻ Retry / إعادة المحاولة</button></div>';
+}
+const emptyMsg = '<div class="empty arabic">لا توجد بيانات<br><span style="font-family:Segoe UI">No data</span></div>';
+
+/* ---------- CHART THEME ---------- */
+function chartColors(){
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  return {
+    grid: dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)',
+    tick: dark ? '#9aa4b8' : '#6b7c76',
+    primary:'#1B4332', accent:'#40916C', light:'#95D5B2',
+    talabat:'#E76F00', jahez:'#EF476F', keeta:'#40916C'
+  };
+}
+function destroyChart(k){ if (charts[k]){ charts[k].destroy(); delete charts[k]; } }
+
+/* =======================================================================
+   SECTION LOADERS
+   ======================================================================= */
+
+/* --- SECTION 1: KPI CARDS (period-aware + clickable drill-down) --- */
+async function loadKPIs(){
+  const box = document.getElementById('kpiGrid');
+  box.innerHTML = '<div class="loader" style="grid-column:1/-1"><div class="ring"></div>Loading KPIs…</div>';
+  try{
+    const t = bhTodayParts();
+    const monthMs = bhMidnightUtcMs(t.y, t.m, 1);
+    const lmY=t.m===1?t.y-1:t.y, lmM=t.m===1?12:t.m-1;
+    const lastMonthMs = bhMidnightUtcMs(lmY, lmM, 1);
+    const prev = periodPrev(PERIOD);
+    const paidStates = ['paid','done'];
+    const [salesP, prevP, monthRev, lastMonthRev, activeProd, vendorDraft, purchP, invData] =
+    await Promise.all([
+      readGroup('pos.order', [['date_order','>=',odooDT(PERIOD.from)],['date_order','<',odooDT(PERIOD.to)],['state','in',paidStates]], ['amount_total'], []),
+      readGroup('pos.order', [['date_order','>=',odooDT(prev.from)],['date_order','<',odooDT(prev.to)],['state','in',paidStates]], ['amount_total'], []),
+      readGroup('pos.order', [['date_order','>=',odooDT(monthMs)],['state','in',paidStates]], ['amount_total'], []),
+      readGroup('pos.order', [['date_order','>=',odooDT(lastMonthMs)],['date_order','<',odooDT(monthMs)],['state','in',paidStates]], ['amount_total'], []),
+      searchCount('product.template', [['active','=',true]]),
+      searchCount('account.move', [['move_type','=','in_invoice'],['state','=','draft']]),
+      readGroup('account.move', [['move_type','=','in_invoice'],['state','=','posted']].concat(periodDateDomain('invoice_date')), ['amount_total'], []),
+      loadInventoryData()   // reused for low-stock KPI + inventory section
+    ]);
+
+    const g = a => (a && a[0] ? a[0] : {});
+    const sRev = g(salesP).amount_total || 0;
+    const pvRev = g(prevP).amount_total || 0;
+    const mRev = g(monthRev).amount_total || 0;
+    const lmRev = g(lastMonthRev).amount_total || 0;
+    const pRev = g(purchP).amount_total || 0;
+    window.__inv = invData;      // cache for inventory section + low-stock drill
+    const lowCount = invData.filter(p => p.qty < 5).length;
+
+    const cards = [
+      {icon:'💰', val:fmtCur(sRev), lbl:PERIOD.label+' Sales', ar:'مبيعات '+PERIOD.labelAr, cls:'good', trend:trendHtml(sRev,pvRev), sub:'vs prev.', kpi:'sales'},
+      {icon:'📅', val:fmtCur(mRev), lbl:"This Month Sales", ar:'مبيعات الشهر', cls:'good', trend:trendHtml(mRev,lmRev), sub:'vs last month', kpi:'month'},
+      {icon:'🏷️', val:fmtNum(activeProd), lbl:'Active Products', ar:'المنتجات النشطة', cls:'', trend:'', sub:'', kpi:'active'},
+      {icon:'⚠️', val:fmtNum(lowCount), lbl:'Low Stock (<5)', ar:'مخزون منخفض', cls:lowCount>0?'warn':'good', trend:'', sub:'', kpi:'low'},
+      {icon:'🧾', val:fmtNum(vendorDraft), lbl:'Open Vendor Bills', ar:'فواتير موردين مفتوحة', cls:vendorDraft>0?'warn':'good', trend:'', sub:'', kpi:'vendor'},
+      {icon:'🛒', val:fmtCur(pRev), lbl:PERIOD.label+' Purchases', ar:'مشتريات '+PERIOD.labelAr, cls:'', trend:'', sub:'', kpi:'purchases'}
+    ];
+    box.innerHTML = cards.map(c =>
+      '<div class="kpi clickable '+c.cls+'" data-kpi="'+c.kpi+'" title="Click for details / اضغط للتفاصيل">'
+      + '<span class="zoom-hint">🔍</span>'
+      + '<div class="icon">'+c.icon+'</div>'
+      + '<div class="val">'+c.val+'</div>'
+      + '<div class="lbl">'+c.lbl+'</div>'
+      + '<div class="lbl-ar arabic">'+c.ar+'</div>'
+      + (c.trend ? '<div>'+c.trend+' <span style="color:var(--muted);font-size:.7rem">'+c.sub+'</span></div>' : '')
+      + '</div>'
+    ).join('');
+  }catch(e){
+    console.error('KPI load error:', e);
+    if (e.cors) showCorsBanner();
+    box.innerHTML = '<div style="grid-column:1/-1">'+errBox('kpis')+'</div>';
+    throw e;
+  }
+}
+
+/* --- SECTION 2: DAILY SALES CHART (period-aware, clickable bars) --- */
+let _salesDays = [];
+async function loadSales(){
+  const box = document.getElementById('salesBox');
+  box.innerHTML = loader();
+  try{
+    const days = salesChartDays();
+    _salesDays = days;
+    const chartFrom = days[0].ms, chartTo = days[days.length-1].ms + 86400000;
+    const rows = await readGroup('pos.order',
+      [['date_order','>=',odooDT(chartFrom)],['date_order','<',odooDT(chartTo)],['state','in',['paid','done']]],
+      ['amount_total'], ['date_order:day'], {orderby:'date_order:day'});
+    const map = {};
+    rows.forEach(r => { map[r['date_order:day']] = {rev:r.amount_total||0, cnt:r.__count||0}; });
+    const revData = days.map(d => (map[d.label] ? +map[d.label].rev.toFixed(3) : 0));
+    const cntData = days.map(d => (map[d.label] ? map[d.label].cnt : 0));
+
+    box.innerHTML = '<canvas id="salesChart"></canvas>';
+    const c = chartColors();
+    destroyChart('sales');
+    const opts = baseChartOpts(c, true);
+    opts.onClick = (evt, els) => { if(els.length){ const d=_salesDays[els[0].index]; if(d) drillDay(d); } };
+    charts.sales = new Chart(document.getElementById('salesChart'), {
+      data:{
+        labels: days.map(d=>d.short),
+        datasets:[
+          {type:'bar', label:'Revenue ('+CUR+')', data:revData, backgroundColor:c.accent, borderRadius:6, yAxisID:'y', order:2},
+          {type:'line', label:'Orders', data:cntData, borderColor:c.talabat, backgroundColor:c.talabat, tension:.35, borderWidth:3, pointRadius:4, yAxisID:'y1', order:1}
+        ]
+      },
+      options:opts
+    });
+  }catch(e){
+    console.error('Sales chart error:', e);
+    if (e.cors) showCorsBanner();
+    box.innerHTML = errBox('sales');
+  }
+}
+
+/* --- SECTION 3: AGGREGATORS --- */
+const AGGS = [
+  {key:'talabat', id:8,  name:'Talabat', ar:'طلبات', icon:'🟠', cls:'talabat'},
+  {key:'jahez',   id:9,  name:'Jahez',   ar:'جاهز',  icon:'🔵', cls:'jahez'},
+  {key:'keeta',   id:18, name:'Keeta',   ar:'كيتا',  icon:'🟢', cls:'keeta'}
+];
+async function loadAggregators(){
+  const box = document.getElementById('aggGrid');
+  box.innerHTML = '<div class="loader" style="grid-column:1/-1"><div class="ring"></div>Loading…</div>';
+  try{
+    const t = bhTodayParts();
+    const monthMs = bhMidnightUtcMs(t.y, t.m, 1);
+    const days = salesChartDays();
+    const chartFrom = days[0].ms, chartTo = days[days.length-1].ms + 86400000;
+    const ids = AGGS.map(a=>a.id);
+    const [periodG, monthG, rangeG] = await Promise.all([
+      readGroup('pos.payment', [['payment_method_id','in',ids]].concat(periodDomain('payment_date')), ['amount'], ['payment_method_id']),
+      readGroup('pos.payment', [['payment_method_id','in',ids],['payment_date','>=',odooDT(monthMs)]], ['amount'], ['payment_method_id']),
+      readGroup('pos.payment', [['payment_method_id','in',ids],['payment_date','>=',odooDT(chartFrom)],['payment_date','<',odooDT(chartTo)]], ['amount'], ['payment_method_id','payment_date:day'])
+    ]);
+    const byId = (rows) => { const m={}; rows.forEach(r=>{ const id=r.payment_method_id?r.payment_method_id[0]:0; m[id]={amt:r.amount||0, cnt:r.__count||0}; }); return m; };
+    const pMap = byId(periodG), mMap = byId(monthG);
+    const rangeMap = {};
+    rangeG.forEach(r=>{
+      const id = r.payment_method_id ? r.payment_method_id[0] : 0;
+      rangeMap[id] = rangeMap[id] || {};
+      rangeMap[id][r['payment_date:day']] = r.amount||0;
+    });
+
+    box.innerHTML = AGGS.map((a,i) =>
+      '<div class="agg clickable '+a.cls+'" data-agg="'+i+'" title="Click for orders / اضغط للطلبات">'
+      + '<span class="zoom-hint">🔍</span>'
+      + '<h3>'+a.icon+' '+a.name+' <span class="arabic" style="opacity:.85;font-size:.85rem">'+a.ar+'</span></h3>'
+      + '<div class="row"><span>'+PERIOD.label+' orders <span class="arabic">طلبات</span></span><b>'+fmtNum((pMap[a.id]||{}).cnt||0)+'</b></div>'
+      + '<div class="row"><span>'+PERIOD.label+' revenue <span class="arabic">مبيعات</span></span><b>'+fmtCur((pMap[a.id]||{}).amt||0)+'</b></div>'
+      + '<div class="row" style="opacity:.75"><span>Month orders <span class="arabic">طلبات الشهر</span></span><b>'+fmtNum((mMap[a.id]||{}).cnt||0)+'</b></div>'
+      + '<div class="row" style="opacity:.75"><span>Month revenue <span class="arabic">مبيعات الشهر</span></span><b>'+fmtCur((mMap[a.id]||{}).amt||0)+'</b></div>'
+      + '<div class="mini"><canvas id="mini_'+a.key+'"></canvas></div>'
+      + '</div>'
+    ).join('');
+
+    AGGS.forEach(a=>{
+      const data = days.map(d => { const v = rangeMap[a.id] && rangeMap[a.id][d.label]; return v ? +v.toFixed(3) : 0; });
+      destroyChart('mini_'+a.key);
+      charts['mini_'+a.key] = new Chart(document.getElementById('mini_'+a.key), {
+        type:'bar',
+        data:{ labels:days.map(d=>d.short.split(' ')[0]), datasets:[{data, backgroundColor:'rgba(255,255,255,.85)', borderRadius:3}] },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>fmtCur(ctx.raw)}}},
+          scales:{ x:{ticks:{color:'rgba(255,255,255,.85)', font:{size:8}}, grid:{display:false}}, y:{display:false} }
+        }
+      });
+    });
+  }catch(e){
+    console.error('Aggregator error:', e);
+    if (e.cors) showCorsBanner();
+    box.innerHTML = '<div style="grid-column:1/-1">'+errBox('aggregators')+'</div>';
+  }
+}
+
+/* --- SECTION 4: TOP 10 PRODUCTS (period-aware, clickable rows) --- */
+let _topRows = [];
+async function loadTopProducts(){
+  const box = document.getElementById('topBox');
+  box.innerHTML = loader();
+  try{
+    const rows = await readGroup('pos.order.line',
+      [['order_id.date_order','>=',odooDT(PERIOD.from)],['order_id.date_order','<',odooDT(PERIOD.to)],['order_id.state','in',['paid','done']]],
+      ['qty','price_subtotal_incl'], ['product_id'], {orderby:'qty desc', limit:10});
+    if (!rows.length){ box.innerHTML = emptyMsg; return; }
+    _topRows = rows.map(r => ({pid: r.product_id?r.product_id[0]:0, name: r.product_id?r.product_id[1]:'—'}));
+    let html = '<table><thead><tr><th>#</th><th>Product / المنتج</th><th>Qty / الكمية</th><th>Revenue / الإيراد</th><th></th></tr></thead><tbody>';
+    rows.forEach((r,i)=>{
+      const name = r.product_id ? r.product_id[1] : '—';
+      html += '<tr class="clickable" data-idx="'+i+'" title="Click for order lines / اضغط للتفاصيل"><td class="rank">'+(i+1)+'</td><td>'+esc(name)+'</td><td><b>'+fmtNum(Math.round((r.qty||0)*100)/100)+'</b></td><td>'+fmtCur(r.price_subtotal_incl||0)+'</td><td class="rowzoom">🔍</td></tr>';
+    });
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  }catch(e){
+    console.error('Top products error:', e);
+    if (e.cors) showCorsBanner();
+    box.innerHTML = errBox('topproducts');
+  }
+}
+
+/* --- INVENTORY DATA (shared by KPI + section) --- */
+async function loadInventoryData(){
+  const rows = await searchRead('product.product', [['is_storable','=',true]],
+    ['display_name','default_code','qty_available','categ_id'], {limit:5000});
+  return rows.map(r => ({
+    id: r.id,
+    name: r.display_name || r.default_code || '—',
+    code: r.default_code || '',
+    qty: Number(r.qty_available)||0,
+    categ: r.categ_id ? String(r.categ_id[1]).split('/').pop().trim() : '—'
+  }));
+}
+/* --- SECTION 5: INVENTORY ALERTS (clickable rows -> stock moves) --- */
+let _invAlerts = [];
+async function loadInventory(){
+  const box = document.getElementById('invBox');
+  box.innerHTML = loader();
+  try{
+    const data = window.__inv || await loadInventoryData();
+    const alerts = data.filter(p => p.qty < 5)
+      .sort((a,b) => a.qty - b.qty);
+    _invAlerts = alerts;
+    if (!alerts.length){ box.innerHTML = '<div class="empty">✅ All stock healthy<br><span class="arabic">المخزون بحالة جيدة</span></div>'; return; }
+    const nNeg = alerts.filter(p=>p.qty<0).length, nZero = alerts.filter(p=>p.qty===0).length, nLow = alerts.filter(p=>p.qty>0).length;
+    let html = '<div style="margin-bottom:10px;font-size:.82rem;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap">'
+      + '<span><b style="color:var(--danger)">'+nNeg+'</b> negative / سالب</span>'
+      + '<span><b style="color:#a01621">'+nZero+'</b> out of stock / نفد</span>'
+      + '<span><b style="color:#a85a00">'+nLow+'</b> low / منخفض</span>'
+      + '<span style="margin-inline-start:auto">'+alerts.length+' total · click a row for stock moves ↓</span></div>';
+    html += '<div style="max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:10px">';
+    html += '<table><thead><tr><th>Product / المنتج</th><th>Category / الفئة</th><th>Qty / الكمية</th><th>Status / الحالة</th><th></th></tr></thead><tbody>';
+    alerts.forEach((p,i)=>{
+      let badge, st;
+      if (p.qty < 0){ badge='dark'; st='Negative / سالب'; }
+      else if (p.qty === 0){ badge='red'; st='Out of stock / نفد'; }
+      else { badge='warn'; st='Low / منخفض'; }
+      html += '<tr class="clickable" data-idx="'+i+'" title="Click for stock moves / حركات المخزون"><td>'+esc(p.name)+'</td><td>'+esc(p.categ)+'</td><td><b>'+ (Math.round(p.qty*100)/100) +'</b></td><td><span class="badge '+badge+'">'+st+'</span></td><td class="rowzoom">🔍</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    box.innerHTML = html;
+  }catch(e){
+    console.error('Inventory error:', e);
+    if (e.cors) showCorsBanner();
+    box.innerHTML = errBox('inventory');
+  }
+}
+
+/* --- SECTION 6: CUSTOMER INVOICES (period-aware, clickable rows) --- */
+const PAY_STATE = {paid:['green','Paid / مدفوعة'], not_paid:['red','Not Paid / غير مدفوعة'],
+  partial:['warn','Partial / جزئي'], in_payment:['warn','In Payment / قيد الدفع'],
+  reversed:['dark','Reversed / معكوسة'], invoicing_legacy:['green','—']};
+let _invoiceRows = [];
+async function loadInvoices(){
+  const box = document.getElementById('invoiceBox');
+  box.innerHTML = loader();
+  try{
+    const rows = await searchRead('account.move',
+      [['move_type','=','out_invoice'],['state','=','posted']].concat(periodDateDomain('invoice_date')),
+      ['name','partner_id','amount_total','invoice_date','payment_state'],
+      {limit:50, order:'invoice_date desc, id desc'});
+    if (!rows.length){ box.innerHTML = emptyMsg; return; }
+    _invoiceRows = rows;
+    let html = '<div style="margin-bottom:8px;font-size:.82rem;color:var(--muted)">'+rows.length+' invoice(s) in '+esc(PERIOD.label)+' · click a row for line details</div>';
+    html += '<div style="max-height:440px;overflow:auto;border:1px solid var(--border);border-radius:10px">';
+    html += '<table><thead><tr><th>Invoice / الفاتورة</th><th>Customer / العميل</th><th>Amount / المبلغ</th><th>Date / التاريخ</th><th>Status / الحالة</th><th></th></tr></thead><tbody>';
+    rows.forEach((r,i)=>{
+      const cust = r.partner_id ? r.partner_id[1] : '—';
+      const ps = PAY_STATE[r.payment_state] || ['green', esc(r.payment_state||'—')];
+      html += '<tr class="clickable" data-inv="'+i+'" title="Click for invoice lines / بنود الفاتورة"><td><b>'+esc(r.name||'—')+'</b></td><td>'+esc(cust)+'</td><td>'+fmtCur(r.amount_total||0)+'</td><td>'+(r.invoice_date||'—')+'</td><td><span class="badge '+ps[0]+'">'+ps[1]+'</span></td><td class="rowzoom">🔍</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    box.innerHTML = html;
+  }catch(e){
+    console.error('Invoices error:', e);
+    if (e.cors) showCorsBanner();
+    box.innerHTML = errBox('invoices');
+  }
+}
+
+/* --- SECTION 7: MONTHLY REVENUE (6 months, clickable points) --- */
+let _months = [];
+async function loadMonthly(){
+  const box = document.getElementById('monthlyBox');
+  box.innerHTML = loader();
+  try{
+    const w = dateWindows();
+    const months = last6Months();
+    _months = months;
+    const ids = AGGS.map(a=>a.id);
+    const [posG, payG] = await Promise.all([
+      readGroup('pos.order', [['date_order','>=',odooDT(w.sixMoMs)],['state','in',['paid','done']]], ['amount_total'], ['date_order:month']),
+      readGroup('pos.payment', [['payment_method_id','in',ids],['payment_date','>=',odooDT(w.sixMoMs)]], ['amount'], ['payment_method_id','payment_date:month'])
+    ]);
+    const posMap = {}; posG.forEach(r=> posMap[monthKey(r['date_order:month'])] = r.amount_total||0);
+    const payMap = {}; // id -> monthKey -> amount
+    payG.forEach(r=>{
+      const id = r.payment_method_id ? r.payment_method_id[0] : 0;
+      payMap[id] = payMap[id] || {};
+      payMap[id][monthKey(r['payment_date:month'])] = r.amount||0;
+    });
+    const totalData = months.map(m => +(posMap[monthKey(m.label)]||0).toFixed(3));
+    const series = AGGS.map(a => months.map(m => +(((payMap[a.id]||{})[monthKey(m.label)])||0).toFixed(3)));
+
+    box.innerHTML = '<canvas id="monthlyChart"></canvas>';
+    const c = chartColors();
+    destroyChart('monthly');
+    const opts = baseChartOpts(c, false);
+    opts.onClick = (evt, els) => { if(els.length){ const m=_months[els[0].index]; if(m) drillMonth(m); } };
+    charts.monthly = new Chart(document.getElementById('monthlyChart'), {
+      type:'line',
+      data:{
+        labels: months.map(m=>m.short),
+        datasets:[
+          {label:'Total POS', data:totalData, borderColor:c.primary, backgroundColor:'rgba(27,67,50,.08)', borderWidth:3, tension:.3, fill:true, pointRadius:5, pointHoverRadius:8},
+          {label:'Talabat', data:series[0], borderColor:c.talabat, backgroundColor:c.talabat, borderWidth:2, tension:.3, pointRadius:3},
+          {label:'Jahez',   data:series[1], borderColor:c.jahez,   backgroundColor:c.jahez,   borderWidth:2, tension:.3, pointRadius:3},
+          {label:'Keeta',   data:series[2], borderColor:c.keeta,   backgroundColor:c.keeta,   borderWidth:2, tension:.3, pointRadius:3}
+        ]
+      },
+      options:opts
+    });
+  }catch(e){
+    console.error('Monthly chart error:', e);
+    if (e.cors) showCorsBanner();
+    box.innerHTML = errBox('monthly');
+  }
+}
+
+/* ---------- CHART OPTIONS ---------- */
+function baseChartOpts(c, dual){
+  const opts = {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{mode:'index', intersect:false},
+    plugins:{
+      legend:{labels:{color:c.tick, font:{size:12}, usePointStyle:true, padding:14}},
+      tooltip:{callbacks:{label:ctx=>{
+        const v = ctx.raw;
+        if (ctx.dataset.label && ctx.dataset.label.indexOf('Orders')>=0) return 'Orders: '+fmtNum(v);
+        return ctx.dataset.label+': '+fmtCur(v);
+      }}}
+    },
+    scales:{
+      x:{ticks:{color:c.tick}, grid:{color:c.grid}},
+      y:{ticks:{color:c.tick, callback:v=>v.toLocaleString()}, grid:{color:c.grid}, title:{display:true, text:CUR, color:c.tick}}
+    }
+  };
+  if (dual){
+    opts.scales.y1 = {position:'right', ticks:{color:c.tick}, grid:{drawOnChartArea:false}, title:{display:true, text:'Orders', color:c.tick}};
+  }
+  return opts;
+}
+
+/* =======================================================================
+   DATE/TIME FORMATTERS (Odoo stores UTC datetimes)
+   ======================================================================= */
+function parseOdooUTC(s){ if(!s) return null; return new Date(String(s).replace(' ','T')+'Z'); }
+function fmtTime(s){ const d=parseOdooUTC(s); return d?new Intl.DateTimeFormat('en-GB',{timeZone:TZ,hour:'2-digit',minute:'2-digit'}).format(d):'—'; }
+function fmtDate(s){ const d=parseOdooUTC(s); return d?new Intl.DateTimeFormat('en-GB',{timeZone:TZ,day:'2-digit',month:'short',year:'numeric'}).format(d):'—'; }
+function fmtDateTime(s){ const d=parseOdooUTC(s); return d?new Intl.DateTimeFormat('en-GB',{timeZone:TZ,day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(d):'—'; }
+
+/* =======================================================================
+   MODAL ENGINE + CSV EXPORT
+   A drill builder returns: {columns:[str], rows:[[cell]], meta?:html, filenameBase}
+   A cell is a string, or {html, v, csv} for custom display/export.
+   ======================================================================= */
+let _modal = {cols:null, rows:null, base:'export'};
+function modalEls(){ return {
+  ov:document.getElementById('modalOverlay'), title:document.getElementById('modalTitle'),
+  sub:document.getElementById('modalSub'), body:document.getElementById('modalBody'),
+  count:document.getElementById('modalCount'), exp:document.getElementById('modalExport')
+}; }
+function cellHtml(cell){
+  if(cell && typeof cell==='object') return '<td>'+(cell.html!=null?cell.html:esc(String(cell.v!=null?cell.v:'')))+'</td>';
+  return '<td>'+esc(String(cell==null?'':cell))+'</td>';
+}
+function cellCsv(cell){
+  let v;
+  if(cell && typeof cell==='object') v = cell.csv!=null?cell.csv:(cell.v!=null?cell.v:'');
+  else v = cell==null?'':cell;
+  v = String(v);
+  if(/[",\n]/.test(v)) v = '"'+v.replace(/"/g,'""')+'"';
+  return v;
+}
+async function openModal(title, subtitle, builderFn){
+  const el = modalEls();
+  el.title.innerHTML = title;
+  el.sub.innerHTML = subtitle || '';
+  el.body.innerHTML = '<div class="loader"><div class="ring"></div>Loading… <span class="arabic">جارٍ التحميل</span></div>';
+  el.count.textContent = '';
+  el.exp.disabled = true;
+  el.ov.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  _modal = {cols:null, rows:null, base:'export'};
+  try{
+    const res = await builderFn();
+    _modal = {cols:res.columns, rows:res.rows, base:res.filenameBase||'export'};
+    let html = '';
+    if(res.meta) html += '<div class="modal-meta">'+res.meta+'</div>';
+    if(!res.rows.length){
+      html += '<div class="empty arabic">لا توجد بيانات<br><span style="font-family:Segoe UI">No data</span></div>';
+    }else{
+      html += '<div class="table-wrap"><table><thead><tr>'+res.columns.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>';
+      html += res.rows.map(r=>'<tr>'+r.map(cellHtml).join('')+'</tr>').join('');
+      html += '</tbody></table></div>';
+      el.exp.disabled = false;
+    }
+    el.body.innerHTML = html;
+    el.count.textContent = res.rows.length + ' rows / صفوف';
+  }catch(e){
+    console.error('Modal error:', e);
+    if(e.cors) showCorsBanner();
+    el.body.innerHTML = '<div class="errbox">⚠️ Error loading details<br><span class="arabic" style="font-weight:500">تعذّر تحميل التفاصيل</span></div>';
+  }
+}
+function closeModal(){
+  const el = modalEls();
+  el.ov.classList.remove('show');
+  document.body.style.overflow = '';
+  el.body.innerHTML = '';
+  _modal = {cols:null, rows:null, base:'export'};
+}
+function exportModalCSV(){
+  if(!_modal.cols || !_modal.rows || !_modal.rows.length) return;
+  const lines = [ _modal.cols.map(cellCsv).join(',') ];
+  _modal.rows.forEach(r => lines.push(r.map(cellCsv).join(',')));
+  const csv = '﻿' + lines.join('\r\n');   // BOM for Excel/Arabic
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const t = bhTodayParts();
+  const stamp = ''+t.y+String(t.m).padStart(2,'0')+String(t.d).padStart(2,'0');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = _modal.base + '_' + stamp + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 120);
+}
+
+/* =======================================================================
+   DRILL-DOWN HELPERS
+   ======================================================================= */
+// payment method name(s) per pos.order id
+async function orderPaymentMethods(orderIds){
+  if(!orderIds.length) return {};
+  const pays = await searchRead('pos.payment', [['pos_order_id','in',orderIds]], ['pos_order_id','payment_method_id'], {limit:20000});
+  const sets = {};
+  pays.forEach(p=>{
+    const oid = p.pos_order_id ? p.pos_order_id[0] : 0; if(!oid) return;
+    const mn = p.payment_method_id ? p.payment_method_id[1] : '—';
+    (sets[oid] = sets[oid] || new Set()).add(mn);
+  });
+  const out = {}; for(const k in sets) out[k] = Array.from(sets[k]).join(', ');
+  return out;
+}
+// internal stock locations (cached)
+let _intLoc = null;
+async function internalLocationIds(){
+  if(_intLoc) return _intLoc;
+  const locs = await searchRead('stock.location', [['usage','=','internal']], ['id'], {limit:2000});
+  _intLoc = new Set(locs.map(l=>l.id));
+  return _intLoc;
+}
+// build rows of pos orders (order + payment method) for a domain
+async function posOrderRows(domain, limit){
+  const orders = await searchRead('pos.order', domain,
+    ['pos_reference','name','date_order','partner_id','lines','amount_total'],
+    {limit:limit||400, order:'date_order desc'});
+  const ids = orders.map(o=>o.id);
+  const pm = await orderPaymentMethods(ids);
+  return orders.map(o=>({o, pm: pm[o.id] || '—'}));
+}
+
+/* ---- A) KPI drill-downs ---- */
+function drillPosOrders(title, subtitle, domain, base){
+  openModal(title, subtitle, async()=>{
+    const data = await posOrderRows(domain, 500);
+    const total = data.reduce((s,x)=>s+(x.o.amount_total||0), 0);
+    return {
+      columns:['Order #','Date/Time','Customer','Items','Total ('+CUR+')','Payment'],
+      rows: data.map(x=>[
+        x.o.pos_reference || x.o.name || ('#'+x.o.id),
+        fmtDateTime(x.o.date_order),
+        x.o.partner_id ? x.o.partner_id[1] : '—',
+        x.o.lines ? x.o.lines.length : 0,
+        {v:x.o.amount_total||0, html:fmtCur(x.o.amount_total||0)},
+        x.pm
+      ]),
+      meta:'<span><b>Total:</b> '+fmtCur(total)+'</span><span><b>Orders:</b> '+data.length+'</span>',
+      filenameBase: base
+    };
+  });
+}
+function drillActiveProducts(){
+  openModal('Active Products <span class="arabic">المنتجات النشطة</span>', 'All active products', async()=>{
+    const rows = await searchRead('product.template', [['active','=',true]], ['name','list_price','categ_id'], {limit:2000, order:'name'});
+    return {
+      columns:['Product','Category','Sale Price ('+CUR+')'],
+      rows: rows.map(r=>[ r.name, r.categ_id?String(r.categ_id[1]).split('/').pop().trim():'—', {v:r.list_price||0, html:fmtCur(r.list_price||0)} ]),
+      meta:'<span><b>'+rows.length+'</b> active products</span>',
+      filenameBase:'active_products'
+    };
+  });
+}
+function drillLowStock(){
+  openModal('Low Stock Products <span class="arabic">مخزون منخفض</span>', 'Products below 5 units', async()=>{
+    const data = (window.__inv||[]).filter(p=>p.qty<5).sort((a,b)=>a.qty-b.qty);
+    return {
+      columns:['Product','Category','Qty','Status'],
+      rows: data.map(p=>{
+        let badge, st;
+        if(p.qty<0){badge='dark';st='Negative';} else if(p.qty===0){badge='red';st='Out of stock';} else {badge='warn';st='Low';}
+        return [ p.name, p.categ, {v:Math.round(p.qty*100)/100, html:'<b>'+(Math.round(p.qty*100)/100)+'</b>'}, {html:'<span class="badge '+badge+'">'+st+'</span>', csv:st} ];
+      }),
+      meta:'<span><b>'+data.length+'</b> products below 5</span>',
+      filenameBase:'low_stock'
+    };
+  });
+}
+function drillVendorBills(){
+  openModal('Open Vendor Bills <span class="arabic">فواتير موردين مفتوحة</span>', 'Draft vendor bills', async()=>{
+    const rows = await searchRead('account.move', [['move_type','=','in_invoice'],['state','=','draft']],
+      ['name','partner_id','amount_total','invoice_date'], {limit:500, order:'invoice_date desc, id desc'});
+    return {
+      columns:['Bill #','Vendor','Amount ('+CUR+')','Date'],
+      rows: rows.map(r=>[ r.name||'(draft)', r.partner_id?r.partner_id[1]:'—', {v:r.amount_total||0, html:fmtCur(r.amount_total||0)}, r.invoice_date||'—' ]),
+      meta:'<span><b>'+rows.length+'</b> draft bills</span>',
+      filenameBase:'open_vendor_bills'
+    };
+  });
+}
+function drillPurchases(){
+  openModal('Purchases — '+esc(PERIOD.label)+' <span class="arabic">المشتريات</span>', 'Posted vendor bills · '+PERIOD.label, async()=>{
+    const rows = await searchRead('account.move',
+      [['move_type','=','in_invoice'],['state','=','posted']].concat(periodDateDomain('invoice_date')),
+      ['name','partner_id','amount_total','invoice_date','payment_state'], {limit:1000, order:'invoice_date desc, id desc'});
+    const total = rows.reduce((s,r)=>s+(r.amount_total||0),0);
+    return {
+      columns:['Bill #','Vendor','Amount ('+CUR+')','Date','Status'],
+      rows: rows.map(r=>{ const ps=PAY_STATE[r.payment_state]||['green',r.payment_state||'—']; return [ r.name||'—', r.partner_id?r.partner_id[1]:'—', {v:r.amount_total||0, html:fmtCur(r.amount_total||0)}, r.invoice_date||'—', {html:'<span class="badge '+ps[0]+'">'+ps[1]+'</span>', csv:(r.payment_state||'')} ]; }),
+      meta:'<span><b>Total:</b> '+fmtCur(total)+'</span><span><b>Bills:</b> '+rows.length+'</span>',
+      filenameBase:'purchases'
+    };
+  });
+}
+
+/* ---- B) Sales bar -> that day's orders ---- */
+function drillDay(d){
+  const from=d.ms, to=d.ms+86400000;
+  drillPosOrders('POS Orders — '+d.short, 'Orders on '+dayLabel(d.y,d.m,d.d),
+    [['date_order','>=',odooDT(from)],['date_order','<',odooDT(to)],['state','in',['paid','done']]],
+    'pos_'+d.y+String(d.m).padStart(2,'0')+String(d.d).padStart(2,'0'));
+}
+
+/* ---- C) Aggregator card -> orders + top 5 products ---- */
+function drillAggregator(agg){
+  openModal(agg.icon+' '+agg.name+' — '+esc(PERIOD.label), 'Orders paid via '+agg.name+' · '+PERIOD.label, async()=>{
+    const pays = await searchRead('pos.payment',
+      [['payment_method_id','=',agg.id]].concat(periodDomain('payment_date')),
+      ['pos_order_id','amount'], {limit:20000});
+    const revenue = pays.reduce((s,p)=>s+(p.amount||0),0);
+    const orderIds = [...new Set(pays.map(p=>p.pos_order_id?p.pos_order_id[0]:0).filter(Boolean))];
+    let orders = [], top5 = [];
+    if(orderIds.length){
+      [orders, top5] = await Promise.all([
+        searchRead('pos.order', [['id','in',orderIds]], ['pos_reference','name','date_order','lines','amount_total'], {limit:2000, order:'date_order desc'}),
+        readGroup('pos.order.line', [['order_id','in',orderIds]], ['qty','price_subtotal_incl'], ['product_id'], {orderby:'qty desc', limit:5})
+      ]);
+    }
+    const topHtml = top5.length
+      ? '<span style="width:100%"><b>Top products:</b> '+top5.map(p=>esc((p.product_id?p.product_id[1]:'—'))+' ('+fmtNum(Math.round((p.qty||0)*100)/100)+')').join(' · ')+'</span>'
+      : '';
+    return {
+      columns:['Order #','Date','Time','Items','Total ('+CUR+')'],
+      rows: orders.map(o=>[ o.pos_reference||o.name||('#'+o.id), fmtDate(o.date_order), fmtTime(o.date_order), o.lines?o.lines.length:0, {v:o.amount_total||0, html:fmtCur(o.amount_total||0)} ]),
+      meta:'<span><b>Revenue:</b> '+fmtCur(revenue)+'</span><span><b>Orders:</b> '+orderIds.length+'</span>'+topHtml,
+      filenameBase: agg.key+'_orders'
+    };
+  });
+}
+
+/* ---- D) Top product row -> order lines ---- */
+function drillTopProduct(pid, name){
+  openModal('Product — '+esc(name), 'Order lines · '+PERIOD.label, async()=>{
+    const lines = await searchRead('pos.order.line',
+      [['product_id','=',pid],['order_id.date_order','>=',odooDT(PERIOD.from)],['order_id.date_order','<',odooDT(PERIOD.to)],['order_id.state','in',['paid','done']]],
+      ['order_id','qty','price_unit','price_subtotal_incl'], {limit:1000});
+    const oids = [...new Set(lines.map(l=>l.order_id?l.order_id[0]:0).filter(Boolean))];
+    let dmap = {}, pm = {};
+    if(oids.length){
+      const [orders, pmap] = await Promise.all([
+        searchRead('pos.order', [['id','in',oids]], ['date_order'], {limit:2000}),
+        orderPaymentMethods(oids)
+      ]);
+      orders.forEach(o=> dmap[o.id]=o.date_order);
+      pm = pmap;
+    }
+    lines.sort((a,b)=>{ const da=dmap[a.order_id&&a.order_id[0]]||'', db=dmap[b.order_id&&b.order_id[0]]||''; return db<da?-1:(db>da?1:0); });
+    const totQty = lines.reduce((s,l)=>s+(l.qty||0),0), totRev = lines.reduce((s,l)=>s+(l.price_subtotal_incl||0),0);
+    return {
+      columns:['Date','Order #','Qty','Unit Price','Total ('+CUR+')','Payment'],
+      rows: lines.map(l=>{ const oid=l.order_id?l.order_id[0]:0; return [
+        fmtDate(dmap[oid]), l.order_id?l.order_id[1]:'—',
+        {v:l.qty||0, html:fmtNum(Math.round((l.qty||0)*100)/100)},
+        {v:l.price_unit||0, html:fmtCur(l.price_unit||0)},
+        {v:l.price_subtotal_incl||0, html:fmtCur(l.price_subtotal_incl||0)},
+        pm[oid]||'—'
+      ]; }),
+      meta:'<span><b>Total qty:</b> '+fmtNum(Math.round(totQty*100)/100)+'</span><span><b>Total:</b> '+fmtCur(totRev)+'</span>',
+      filenameBase:'product_'+pid
+    };
+  });
+}
+
+/* ---- E) Inventory row -> stock move history (last 30) ---- */
+function drillInventoryMoves(pid, name){
+  openModal('Stock Moves — '+esc(name), 'Last 30 completed moves <span class="arabic">حركات المخزون</span>', async()=>{
+    const [internal, moves] = await Promise.all([
+      internalLocationIds(),
+      searchRead('stock.move', [['product_id','=',pid],['state','=','done']],
+        ['date','product_uom_qty','reference','location_id','location_dest_id'], {limit:30, order:'date desc'})
+    ]);
+    return {
+      columns:['Date','Type','Qty','Reference','From → To'],
+      rows: moves.map(m=>{
+        const srcId=m.location_id?m.location_id[0]:0, dstId=m.location_dest_id?m.location_dest_id[0]:0;
+        const srcInt=internal.has(srcId), dstInt=internal.has(dstId);
+        let type = (!srcInt&&dstInt)?'IN' : ((srcInt&&!dstInt)?'OUT':'INTERNAL');
+        const badge = type==='IN'?'green':(type==='OUT'?'red':'warn');
+        const src=m.location_id?m.location_id[1]:'?', dst=m.location_dest_id?m.location_dest_id[1]:'?';
+        return [ fmtDate(m.date), {html:'<span class="badge '+badge+'">'+type+'</span>', csv:type}, {v:m.product_uom_qty||0, html:fmtNum(Math.round((m.product_uom_qty||0)*100)/100)}, m.reference||'—', src+' → '+dst ];
+      }),
+      meta:'<span><b>'+moves.length+'</b> recent moves</span>',
+      filenameBase:'stock_moves_'+pid
+    };
+  });
+}
+
+/* ---- F) Invoice row -> invoice lines ---- */
+function drillInvoiceLines(inv){
+  openModal('Invoice — '+esc(inv.name||''), (inv.partner_id?inv.partner_id[1]:'—'), async()=>{
+    const [mv, lines] = await Promise.all([
+      searchRead('account.move', [['id','=',inv.id]], ['name','partner_id','invoice_date','invoice_date_due','amount_untaxed','amount_tax','amount_total','payment_state'], {limit:1}),
+      searchRead('account.move.line', [['move_id','=',inv.id],['product_id','!=',false]],
+        ['product_id','quantity','price_unit','price_subtotal','price_total'], {limit:500})
+    ]);
+    const m = mv[0] || {};
+    const ps = PAY_STATE[m.payment_state] || ['green', m.payment_state||'—'];
+    const meta = '<span><b>Customer:</b> '+esc(m.partner_id?m.partner_id[1]:'—')+'</span>'
+      + '<span><b>Invoice date:</b> '+(m.invoice_date||'—')+'</span>'
+      + '<span><b>Due date:</b> '+(m.invoice_date_due||'—')+'</span>'
+      + '<span><b>Untaxed:</b> '+fmtCur(m.amount_untaxed||0)+'</span>'
+      + '<span><b>Tax:</b> '+fmtCur(m.amount_tax||0)+'</span>'
+      + '<span><b>Total:</b> '+fmtCur(m.amount_total||0)+'</span>'
+      + '<span><b>Status:</b> <span class="badge '+ps[0]+'">'+ps[1]+'</span></span>';
+    return {
+      columns:['Product','Qty','Unit Price','Tax ('+CUR+')','Subtotal ('+CUR+')'],
+      rows: lines.map(l=>[
+        l.product_id?l.product_id[1]:'—',
+        {v:l.quantity||0, html:fmtNum(Math.round((l.quantity||0)*100)/100)},
+        {v:l.price_unit||0, html:fmtCur(l.price_unit||0)},
+        {v:+((l.price_total||0)-(l.price_subtotal||0)).toFixed(3), html:fmtCur((l.price_total||0)-(l.price_subtotal||0))},
+        {v:l.price_subtotal||0, html:fmtCur(l.price_subtotal||0)}
+      ]),
+      meta: meta,
+      filenameBase:'invoice_'+String(inv.name||inv.id).replace(/[^\w]/g,'_')
+    };
+  });
+}
+
+/* ---- G) Monthly point -> daily breakdown ---- */
+function drillMonth(mo){
+  openModal('Daily Breakdown — '+monthLabel(mo.y,mo.m), 'Total POS + aggregators per day', async()=>{
+    const mFrom = bhMidnightUtcMs(mo.y, mo.m, 1);
+    const nmY = mo.m===12?mo.y+1:mo.y, nmM = mo.m===12?1:mo.m+1;
+    const mTo = bhMidnightUtcMs(nmY, nmM, 1);
+    const ids = AGGS.map(a=>a.id);
+    const [posG, payG] = await Promise.all([
+      readGroup('pos.order', [['date_order','>=',odooDT(mFrom)],['date_order','<',odooDT(mTo)],['state','in',['paid','done']]], ['amount_total'], ['date_order:day'], {orderby:'date_order:day'}),
+      readGroup('pos.payment', [['payment_method_id','in',ids],['payment_date','>=',odooDT(mFrom)],['payment_date','<',odooDT(mTo)]], ['amount'], ['payment_method_id','payment_date:day'])
+    ]);
+    const posMap = {}; posG.forEach(r=> posMap[r['date_order:day']] = r.amount_total||0);
+    const payMap = {}; payG.forEach(r=>{ const id=r.payment_method_id?r.payment_method_id[0]:0; payMap[id]=payMap[id]||{}; payMap[id][r['payment_date:day']]=r.amount||0; });
+    const days = []; for(let ms=mFrom; ms<mTo-1000; ms+=86400000) days.push(dayDescFromMs(ms));
+    const tot = days.reduce((s,d)=>s+(posMap[d.label]||0),0);
+    return {
+      columns:['Date','Total POS ('+CUR+')','Talabat','Jahez','Keeta'],
+      rows: days.map(d=>{
+        const get = id => (payMap[id]||{})[d.label]||0;
+        return [ d.short,
+          {v:posMap[d.label]||0, html:fmtCur(posMap[d.label]||0)},
+          {v:get(8),  html:fmtCur(get(8))},
+          {v:get(9),  html:fmtCur(get(9))},
+          {v:get(18), html:fmtCur(get(18))} ];
+      }),
+      meta:'<span><b>Month total:</b> '+fmtCur(tot)+'</span>',
+      filenameBase:'month_'+mo.y+String(mo.m).padStart(2,'0')
+    };
+  });
+}
+
+/* KPI card -> drill dispatch */
+const KPI_DRILL = {
+  sales: () => drillPosOrders('POS Orders — '+esc(PERIOD.label), PERIOD.label+' sales',
+              [['date_order','>=',odooDT(PERIOD.from)],['date_order','<',odooDT(PERIOD.to)],['state','in',['paid','done']]], 'pos_sales'),
+  month: () => { const t=bhTodayParts(); const mMs=bhMidnightUtcMs(t.y,t.m,1), tomMs=bhMidnightUtcMs(t.y,t.m,t.d)+86400000;
+              drillPosOrders('POS Orders — This Month', 'This month sales',
+              [['date_order','>=',odooDT(mMs)],['date_order','<',odooDT(tomMs)],['state','in',['paid','done']]], 'pos_month'); },
+  active: drillActiveProducts,
+  low: drillLowStock,
+  vendor: drillVendorBills,
+  purchases: drillPurchases
+};
+
+/* =======================================================================
+   ORCHESTRATION
+   ======================================================================= */
+const SECTIONS = {
+  kpis: loadKPIs, sales: loadSales, aggregators: loadAggregators,
+  topproducts: loadTopProducts, inventory: loadInventory,
+  invoices: loadInvoices, monthly: loadMonthly
+};
+function loadSection(name){ if (SECTIONS[name]) SECTIONS[name](); }
+
+let loading = false, pendingReload = false;
+async function loadAll(){
+  if (loading){ pendingReload = true; return; }   // queue: re-run after current finishes (e.g. period change)
+  loading = true;
+  const icon = document.getElementById('refreshIcon');
+  icon.classList.add('spin');
+  try{
+    if (!UID) await authenticate();
+    setStatus('live');
+    hideCorsBanner();
+    updatePeriodChips();
+    // KPIs first (also fetches inventory data used by section 5), then the rest in parallel
+    await loadKPIs().catch(()=>{});
+    await Promise.all([
+      loadSales(), loadAggregators(), loadTopProducts(),
+      loadInventory(), loadInvoices(), loadMonthly()
+    ]);
+    document.getElementById('lastUpdate').textContent =
+      'Updated ' + new Intl.DateTimeFormat('en-GB',{timeZone:TZ, hour:'2-digit', minute:'2-digit', second:'2-digit'}).format(new Date());
+  }catch(e){
+    console.error('Global load error:', e);
+    setStatus('err');
+    if (e.cors) showCorsBanner();
+  }finally{
+    icon.classList.remove('spin');
+    loading = false;
+    if (pendingReload){ pendingReload = false; loadAll(); }
+  }
+}
+
+function showCorsBanner(){ document.getElementById('corsBanner').style.display='block'; }
+function hideCorsBanner(){ document.getElementById('corsBanner').style.display='none'; }
+
+/* ---------- CLOCK ---------- */
+function tickClock(){
+  const now = new Date();
+  document.getElementById('clockTime').textContent =
+    new Intl.DateTimeFormat('en-GB',{timeZone:TZ, hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(now);
+  document.getElementById('clockDate').textContent =
+    new Intl.DateTimeFormat('en-GB',{timeZone:TZ, weekday:'short', day:'2-digit', month:'short', year:'numeric'}).format(now)
+    + ' · Bahrain';
+}
+
+/* ---------- THEME ---------- */
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('themeBtn').textContent = t==='dark' ? '☀️' : '🌙';
+  try{ localStorage.setItem('pista_theme', t); }catch(e){}
+}
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute('data-theme')==='dark' ? 'light':'dark';
+  applyTheme(cur);
+  // redraw charts so grid/tick colors match
+  loadSales(); loadAggregators(); loadMonthly();
+}
+
+/* ---------- NAV HIGHLIGHT ---------- */
+function initNav(){
+  const links = document.querySelectorAll('.sidebar a, .bottomnav a');
+  const sections = Array.from(document.querySelectorAll('.section'));
+  const obs = new IntersectionObserver(entries=>{
+    entries.forEach(en=>{
+      if (en.isIntersecting){
+        const id = en.target.id;
+        links.forEach(l=> l.classList.toggle('active', l.getAttribute('href')==='#'+id));
+      }
+    });
+  }, {rootMargin:'-40% 0px -55% 0px'});
+  sections.forEach(s=>obs.observe(s));
+  links.forEach(l=> l.addEventListener('click', e=>{
+    e.preventDefault();
+    const el = document.querySelector(l.getAttribute('href'));
+    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  }));
+}
+
+/* ---------- FILTER BAR WIRING ---------- */
+function initFilterBar(){
+  document.querySelectorAll('.fbtn[data-period]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const k = b.dataset.period;
+      if(k === 'custom'){
+        document.querySelectorAll('.fbtn[data-period]').forEach(x=> x.classList.toggle('active', x===b));
+        const cr = document.getElementById('customRange'); cr.classList.add('show');
+        const cf = document.getElementById('customFrom'), ct = document.getElementById('customTo');
+        if(!ct.value){ const p=bhTodayParts(); ct.value = p.y+'-'+String(p.m).padStart(2,'0')+'-'+String(p.d).padStart(2,'0'); }
+        if(!cf.value){ cf.value = ct.value; }
+        return;
+      }
+      setPeriod(k);
+    });
+  });
+  document.getElementById('customApply').addEventListener('click', ()=>{
+    const cf = document.getElementById('customFrom').value, ct = document.getElementById('customTo').value;
+    if(!cf || !ct){ alert('Please select both dates / اختر التاريخين'); return; }
+    if(cf > ct){ alert('"From" must be on or before "To" / التاريخ غير صحيح'); return; }
+    setPeriod('custom', cf, ct);
+  });
+}
+
+/* ---------- MODAL WIRING + CLICK DELEGATION ---------- */
+function initDrilldowns(){
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalExport').addEventListener('click', exportModalCSV);
+  document.getElementById('modalOverlay').addEventListener('click', e=>{ if(e.target.id==='modalOverlay') closeModal(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+  document.getElementById('kpiGrid').addEventListener('click', e=>{
+    const c = e.target.closest('.kpi[data-kpi]'); if(c && KPI_DRILL[c.dataset.kpi]) KPI_DRILL[c.dataset.kpi]();
+  });
+  document.getElementById('aggGrid').addEventListener('click', e=>{
+    const c = e.target.closest('.agg[data-agg]'); if(c) drillAggregator(AGGS[+c.dataset.agg]);
+  });
+  document.getElementById('topBox').addEventListener('click', e=>{
+    const tr = e.target.closest('tr[data-idx]'); if(!tr) return;
+    const p = _topRows[+tr.dataset.idx]; if(p) drillTopProduct(p.pid, p.name);
+  });
+  document.getElementById('invBox').addEventListener('click', e=>{
+    const tr = e.target.closest('tr[data-idx]'); if(!tr) return;
+    const p = _invAlerts[+tr.dataset.idx]; if(p) drillInventoryMoves(p.id, p.name);
+  });
+  document.getElementById('invoiceBox').addEventListener('click', e=>{
+    const tr = e.target.closest('tr[data-inv]'); if(!tr) return;
+    const inv = _invoiceRows[+tr.dataset.inv]; if(inv) drillInvoiceLines(inv);
+  });
+}
+
+/* ---------- INIT ---------- */
+function init(){
+  let saved='light'; try{ saved = localStorage.getItem('pista_theme') || 'light'; }catch(e){}
+  applyTheme(saved);
+  restorePeriod();
+  tickClock(); setInterval(tickClock, 1000);
+  initNav();
+  initPeriodChips();
+  initFilterBar();
+  initDrilldowns();
+  updateFilterUI();
+  document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+  document.getElementById('refreshBtn').addEventListener('click', loadAll);
+  loadAll();
+  refreshTimer = setInterval(loadAll, REFRESH_MS);
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
