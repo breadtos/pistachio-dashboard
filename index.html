@@ -113,6 +113,14 @@ html[data-theme="dark"] tbody tr:hover{background:rgba(64,145,108,.12)}
 .badge.dark{background:#5a0d16; color:#ffd7db}
 .rank{font-weight:800; color:var(--accent)}
 
+/* ===== PAYMENTS SECTION (dark red theme) ===== */
+.kpi-grid.four{grid-template-columns:repeat(4,1fr)}
+@media(max-width:900px){ .kpi-grid.four{grid-template-columns:repeat(2,1fr)} }
+.kpi.pay::before{background:#8B1A1A}
+.pay-table thead th{background:#8B1A1A; color:#fff}
+tr.vend-hi td{color:#a01621; font-weight:700}
+html[data-theme="dark"] tr.vend-hi td{color:#ff8f98}
+
 /* ===== CHART BOXES ===== */
 .chart-box{position:relative; height:320px}
 .chart-box.tall{height:360px}
@@ -276,6 +284,7 @@ html[data-theme="dark"] .modal-meta b{color:var(--accent)}
     <a href="#inventory">📦 <span>Inventory <span class="arabic" style="font-size:.8rem;opacity:.7">المخزون</span></span></a>
     <a href="#invoices">🧾 <span>Invoices <span class="arabic" style="font-size:.8rem;opacity:.7">الفواتير</span></span></a>
     <a href="#monthly">🗓️ <span>Monthly <span class="arabic" style="font-size:.8rem;opacity:.7">شهري</span></span></a>
+    <a href="#payments">💸 <span>Payments <span class="arabic" style="font-size:.8rem;opacity:.7">المدفوعات</span></span></a>
   </nav>
 
   <main class="main">
@@ -336,6 +345,12 @@ html[data-theme="dark"] .modal-meta b{color:var(--accent)}
       </div>
     </section>
 
+    <!-- SECTION 8: Vendor Payments -->
+    <section class="section" id="payments">
+      <div class="section-title">💸 Vendor Payments <span class="ar arabic">المدفوعات للموردين</span></div>
+      <div id="paymentsBox"><div class="loader"><div class="ring"></div>Loading…</div></div>
+    </section>
+
     <div style="text-align:center; color:var(--muted); font-size:.78rem; padding:8px 0 20px">
       Pistachio Sweets · Odoo 19 · Auto-refresh every 5 min ·
       <span id="lastUpdate">—</span>
@@ -351,6 +366,7 @@ html[data-theme="dark"] .modal-meta b{color:var(--accent)}
   <a href="#inventory"><span>📦</span>Stock</a>
   <a href="#invoices"><span>🧾</span>Inv</a>
   <a href="#monthly"><span>🗓️</span>Month</a>
+  <a href="#payments"><span>💸</span>Pay</a>
 </nav>
 
 <!-- DRILL-DOWN MODAL -->
@@ -647,7 +663,7 @@ function updateFilterUI(){
   }
 }
 // per-section period badge in the section title
-const CHIP_PERIOD_SECTIONS = {kpis:1, sales:1, aggregators:1, topproducts:1, invoices:1};
+const CHIP_PERIOD_SECTIONS = {kpis:1, sales:1, aggregators:1, topproducts:1, invoices:1, payments:1};
 function initPeriodChips(){
   document.querySelectorAll('.section').forEach(sec=>{
     const title=sec.querySelector('.section-title'); if(!title) return;
@@ -1027,6 +1043,151 @@ async function loadMonthly(){
     if (e.cors) showCorsBanner();
     box.innerHTML = errBox('monthly');
   }
+}
+
+/* --- SECTION 8: VENDOR PAYMENTS (period-aware, dark red theme) --- */
+// NOTE: Odoo 19 account.payment states are draft/in_process/paid/canceled/rejected —
+// there is no 'posted' state. 'in_process' + 'paid' = confirmed outbound payments.
+const PAY_DOMAIN = [['payment_type','=','outbound'],['state','in',['in_process','paid']]];
+const PAY_ST_LBL = {paid:['green','Paid / مدفوع'], in_process:['warn','In Process / قيد المعالجة']};
+const PAY_RED = '#8B0000';
+let _payVendors = [], _payDays = [];
+async function loadPayments(){
+  const box = document.getElementById('paymentsBox');
+  box.innerHTML = '<div class="card">'+loader('Loading payments…')+'</div>';
+  try{
+    const prev = periodPrev(PERIOD);
+    const days = salesChartDays();               // same daily buckets as the sales chart
+    _payDays = days;
+    const chartFrom = bhDateString(days[0].ms), chartTo = bhDateString(days[days.length-1].ms);
+    const [rows, prevG, chartG] = await Promise.all([
+      // account.payment.date is a DATE-ONLY field -> Bahrain date strings, not UTC datetimes
+      searchRead('account.payment', PAY_DOMAIN.concat(periodDateDomain('date')),
+        ['name','date','partner_id','amount','journal_id'], {limit:5000, order:'date desc, id desc'}),
+      readGroup('account.payment', PAY_DOMAIN.concat([['date','>=',bhDateString(prev.from)],['date','<=',bhDateString(prev.to-1)]]), ['amount'], []),
+      readGroup('account.payment', PAY_DOMAIN.concat([['date','>=',chartFrom],['date','<=',chartTo]]), ['amount'], ['date:day'])
+    ]);
+
+    // ---- aggregate ----
+    const total   = rows.reduce((s,r)=>s+(r.amount||0),0);
+    const prevTot = (prevG && prevG[0] ? prevG[0].amount : 0) || 0;
+    const largest = rows.reduce((m,r)=>Math.max(m, r.amount||0), 0);
+    const vmap = {};
+    rows.forEach(r=>{
+      const pid = r.partner_id ? r.partner_id[0] : 0;
+      const v = vmap[pid] = vmap[pid] || {pid, name:(r.partner_id?r.partner_id[1]:'— (no vendor)'), total:0, cnt:0, last:''};
+      v.total += r.amount||0; v.cnt++;
+      if (r.date && r.date > v.last) v.last = r.date;
+    });
+    const vendors = Object.values(vmap).sort((a,b)=>b.total-a.total);
+    const nVendors = vendors.filter(v=>v.pid).length;
+    _payVendors = vendors.slice(0,10);
+
+    // ---- KPI cards ----
+    const kpis = [
+      {icon:'💸', val:fmtCur(total),   lbl:'Total Paid',      ar:'إجمالي المدفوعات', trend:trendHtml(total, prevTot), sub:'vs prev.', act:1},
+      {icon:'🔢', val:fmtNum(rows.length), lbl:'Payment Count', ar:'عدد الدفعات',    trend:'', sub:'', act:1},
+      {icon:'🏢', val:fmtNum(nVendors), lbl:'Vendors Paid',   ar:'عدد الموردين',     trend:'', sub:'', act:0},
+      {icon:'💳', val:fmtCur(largest), lbl:'Largest Payment', ar:'أكبر دفعة',        trend:'', sub:'', act:0}
+    ];
+    let html = '<div class="kpi-grid four">' + kpis.map(k =>
+      '<div class="kpi pay'+(k.act?' clickable" data-payact="all" title="Click for details / اضغط للتفاصيل':'')+'">'
+      + (k.act?'<span class="zoom-hint">🔍</span>':'')
+      + '<div class="icon">'+k.icon+'</div>'
+      + '<div class="val">'+k.val+'</div>'
+      + '<div class="lbl">'+k.lbl+'</div>'
+      + '<div class="lbl-ar arabic">'+k.ar+'</div>'
+      + (k.trend ? '<div>'+k.trend+' <span style="color:var(--muted);font-size:.7rem">'+k.sub+'</span></div>' : '')
+      + '</div>').join('') + '</div>';
+
+    // ---- Top 10 vendors table ----
+    html += '<div class="card" style="margin-top:14px">';
+    if (!vendors.length){
+      html += emptyMsg;
+    } else {
+      html += '<div style="margin-bottom:8px;font-size:.82rem;color:var(--muted)">Top 10 vendors by amount paid · '+esc(PERIOD.label)+' · click a row for payments · <span style="color:#a01621;font-weight:700">red = paid &gt; 500 '+CUR+'</span></div>';
+      html += '<div class="table-wrap pay-table"><table><thead><tr><th>#</th><th>Vendor / المورد</th><th>Payments / الدفعات</th><th>Total Paid ('+CUR+')</th><th>Last Payment / آخر دفعة</th><th></th></tr></thead><tbody>';
+      _payVendors.forEach((v,i)=>{
+        html += '<tr class="clickable'+(v.total>500?' vend-hi':'')+'" data-vidx="'+i+'" title="Click for payments / اضغط للتفاصيل">'
+          + '<td class="rank">'+(i+1)+'</td><td>'+esc(v.name)+'</td><td>'+fmtNum(v.cnt)+'</td>'
+          + '<td><b>'+fmtCur(v.total)+'</b></td><td>'+(v.last||'—')+'</td><td class="rowzoom">🔍</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    // ---- Daily bar chart ----
+    html += '<div class="card" style="margin-top:14px"><div class="chart-box"><canvas id="payChart"></canvas></div></div>';
+    box.innerHTML = html;
+
+    // read_group 'date:day' labels look like "13 Jul 2026" -> match d.label
+    const dmap = {}; chartG.forEach(r=>{ dmap[r['date:day']] = r.amount||0; });
+    const payData = days.map(d => +(dmap[d.label]||0).toFixed(3));
+    const c = chartColors();
+    destroyChart('payments');
+    const opts = baseChartOpts(c, false);
+    opts.onClick = (evt, els) => { if(els.length){ const d=_payDays[els[0].index]; if(d) drillPaymentsDay(d); } };
+    charts.payments = new Chart(document.getElementById('payChart'), {
+      type:'bar',
+      data:{ labels:days.map(d=>d.short), datasets:[{label:'Paid ('+CUR+')', data:payData, backgroundColor:PAY_RED, borderRadius:6}] },
+      options:opts
+    });
+  }catch(e){
+    console.error('Payments error:', e);
+    if (e.cors) showCorsBanner();
+    box.innerHTML = '<div class="card">'+errBox('payments')+'</div>';
+  }
+}
+
+/* ---- Payments drill-downs ---- */
+// A) KPI "Total Paid" / "Payment Count" -> all payments in period
+function drillPayments(){
+  openModal('Vendor Payments — '+esc(PERIOD.label)+' <span class="arabic">المدفوعات للموردين</span>', 'Outbound payments · '+PERIOD.label, async()=>{
+    const rows = await searchRead('account.payment', PAY_DOMAIN.concat(periodDateDomain('date')),
+      ['name','date','partner_id','amount','journal_id','state'], {limit:2000, order:'date desc, id desc'});
+    const total = rows.reduce((s,r)=>s+(r.amount||0),0);
+    return {
+      columns:['Payment #','Date','Vendor','Amount ('+CUR+')','Journal','Status'],
+      rows: rows.map(r=>{ const ps=PAY_ST_LBL[r.state]||['green',esc(r.state||'—')]; return [
+        r.name||('#'+r.id), r.date||'—', r.partner_id?r.partner_id[1]:'—',
+        {v:r.amount||0, html:fmtCur(r.amount||0)},
+        r.journal_id?r.journal_id[1]:'—',
+        {html:'<span class="badge '+ps[0]+'">'+ps[1]+'</span>', csv:r.state||''}
+      ]; }),
+      meta:'<span><b>Total:</b> '+fmtCur(total)+'</span><span><b>Payments:</b> '+rows.length+'</span>',
+      filenameBase:'vendor_payments'
+    };
+  });
+}
+// B) Vendor row -> that vendor's payments in period
+function drillVendorPayments(v){
+  openModal('Payments — '+esc(v.name), 'Payments to this vendor · '+PERIOD.label, async()=>{
+    const dom = PAY_DOMAIN.concat(periodDateDomain('date')).concat([['partner_id','=', v.pid || false]]);
+    const rows = await searchRead('account.payment', dom,
+      ['name','date','amount','journal_id','memo'], {limit:1000, order:'date desc, id desc'});
+    const total = rows.reduce((s,r)=>s+(r.amount||0),0);
+    return {
+      columns:['Payment #','Date','Amount ('+CUR+')','Journal','Reference'],
+      rows: rows.map(r=>[ r.name||('#'+r.id), r.date||'—', {v:r.amount||0, html:fmtCur(r.amount||0)}, r.journal_id?r.journal_id[1]:'—', r.memo||'—' ]),
+      meta:'<span><b>Vendor:</b> '+esc(v.name)+'</span><span><b>Total paid:</b> '+fmtCur(total)+'</span><span><b>Payments:</b> '+rows.length+'</span>',
+      filenameBase:'vendor_'+(v.pid||0)+'_payments'
+    };
+  });
+}
+// C) Chart bar -> that day's payments
+function drillPaymentsDay(d){
+  const ds = d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');
+  openModal('Payments — '+d.short, 'Outbound payments on '+dayLabel(d.y,d.m,d.d), async()=>{
+    const rows = await searchRead('account.payment', PAY_DOMAIN.concat([['date','=',ds]]),
+      ['name','partner_id','amount','journal_id'], {limit:1000, order:'id desc'});
+    const total = rows.reduce((s,r)=>s+(r.amount||0),0);
+    return {
+      columns:['Payment #','Vendor','Amount ('+CUR+')','Journal'],
+      rows: rows.map(r=>[ r.name||('#'+r.id), r.partner_id?r.partner_id[1]:'—', {v:r.amount||0, html:fmtCur(r.amount||0)}, r.journal_id?r.journal_id[1]:'—' ]),
+      meta:'<span><b>Total:</b> '+fmtCur(total)+'</span><span><b>Payments:</b> '+rows.length+'</span>',
+      filenameBase:'payments_'+ds.replace(/-/g,'')
+    };
+  });
 }
 
 /* ---------- CHART OPTIONS ---------- */
@@ -1418,7 +1579,7 @@ const KPI_DRILL = {
 const SECTIONS = {
   kpis: loadKPIs, sales: loadSales, aggregators: loadAggregators,
   topproducts: loadTopProducts, inventory: loadInventory,
-  invoices: loadInvoices, monthly: loadMonthly
+  invoices: loadInvoices, monthly: loadMonthly, payments: loadPayments
 };
 function loadSection(name){ if (SECTIONS[name]) SECTIONS[name](); }
 
@@ -1437,7 +1598,7 @@ async function loadAll(){
     await loadKPIs().catch(()=>{});
     await Promise.all([
       loadSales(), loadAggregators(), loadTopProducts(),
-      loadInventory(), loadInvoices(), loadMonthly()
+      loadInventory(), loadInvoices(), loadMonthly(), loadPayments()
     ]);
     document.getElementById('lastUpdate').textContent =
       'Updated ' + new Intl.DateTimeFormat('en-GB',{timeZone:TZ, hour:'2-digit', minute:'2-digit', second:'2-digit'}).format(new Date());
@@ -1475,7 +1636,7 @@ function toggleTheme(){
   const cur = document.documentElement.getAttribute('data-theme')==='dark' ? 'light':'dark';
   applyTheme(cur);
   // redraw charts so grid/tick colors match
-  loadSales(); loadAggregators(); loadMonthly();
+  loadSales(); loadAggregators(); loadMonthly(); loadPayments();
 }
 
 /* ---------- NAV HIGHLIGHT ---------- */
@@ -1546,6 +1707,11 @@ function initDrilldowns(){
   document.getElementById('invoiceBox').addEventListener('click', e=>{
     const tr = e.target.closest('tr[data-inv]'); if(!tr) return;
     const inv = _invoiceRows[+tr.dataset.inv]; if(inv) drillInvoiceLines(inv);
+  });
+  document.getElementById('paymentsBox').addEventListener('click', e=>{
+    const k = e.target.closest('.kpi[data-payact]'); if(k){ drillPayments(); return; }
+    const tr = e.target.closest('tr[data-vidx]'); if(!tr) return;
+    const v = _payVendors[+tr.dataset.vidx]; if(v) drillVendorPayments(v);
   });
 }
 
